@@ -1,0 +1,23 @@
+methodology_version: "2026.10"
+
+thresholds:
+  vci_alert: 35
+  vci_severe: 25
+  rainfall_deficit: -0.2
+  water_distance_km:
+    camel: 12
+    cattle: 8
+    small_stock: 6
+  exposure_high: 0.7
+  vulnerability_high: 0.6
+
+weights:
+  vegetation: 0.35
+  climate: 0.25
+  water_access: 0.25
+  exposure: 0.15
+
+methodology:
+  component_scale: "grid_cell"
+  baseline_method: "climatology_2001_2020"
+  aggregation: "weighted_mean"

@@ -1,0 +1,44 @@
+sources:
+  - id: modis_ndvi
+    name: MODIS NDVI
+    provider: NASA
+    type: raster
+    resolution_m: 250
+    coverage: global
+    update_frequency: 16_days
+    methodology_version: "2026.10"
+
+  - id: chirps
+    name: CHIRPS precipitation
+    provider: UCSB/CHC
+    type: raster
+    resolution_m: 5000
+    coverage: global
+    update_frequency: daily
+    methodology_version: "2026.10"
+
+  - id: jrc_water
+    name: JRC Global Surface Water
+    provider: EC JRC
+    type: raster
+    resolution_m: 250
+    coverage: global
+    update_frequency: yearly
+    methodology_version: "2026.10"
+
+  - id: worldpop
+    name: WorldPop population counts
+    provider: WorldPop
+    type: raster
+    resolution_m: 100
+    coverage: Kenya
+    update_frequency: yearly
+    methodology_version: "2026.10"
+
+  - id: ndma_bulletins
+    name: NDMA drought bulletins
+    provider: NDMA
+    type: tabular
+    coverage: Kenya
+    update_frequency: monthly
+    methodology_version: "2026.10"

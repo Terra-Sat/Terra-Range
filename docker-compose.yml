@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: terrarange-postgis
+    environment:
+      POSTGRES_DB: terrarange
+      POSTGRES_USER: terrarange
+      POSTGRES_PASSWORD: terrarange
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: terrarange-backend
+    env_file:
+      - .env
+    depends_on:
+      - postgis
+    ports:
+      - "8000:8000"
+    command: python manage.py runserver 0.0.0.0:8000
+
+  titiler:
+    image: developmentseed/titiler:latest
+    container_name: terrarange-titiler
+    ports:
+      - "8081:80"
+
+  pg_tileserv:
+    image: pramsey/pg_tileserv:latest
+    container_name: terrarange-pg-tileserv
+    depends_on:
+      - postgis
+    environment:
+      DATABASE_URL: postgres://terrarange:terrarange@postgis:5432/terrarange
+    ports:
+      - "7800:7800"
+
+volumes:
+  pgdata:

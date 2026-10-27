@@ -1,0 +1,29 @@
+[project]
+name = "terrarange"
+version = "0.1.0"
+description = "Terra-Range pipeline package"
+readme = "../README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "rasterio",
+  "xarray",
+  "geopandas",
+  "pandas",
+  "numpy",
+  "pyyaml",
+  "shapely",
+  "dask",
+  "duckdb",
+  "pyarrow",
+  "jupyter",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["terrarange"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

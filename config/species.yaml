@@ -1,0 +1,17 @@
+species:
+  camel:
+    watering_limit_km: 12
+    trekking_limit_km: 25
+    seasonal_window: ["dry", "very_dry"]
+  cattle:
+    watering_limit_km: 8
+    trekking_limit_km: 18
+    seasonal_window: ["dry", "very_dry"]
+  small_stock:
+    watering_limit_km: 6
+    trekking_limit_km: 12
+    seasonal_window: ["dry", "very_dry"]
+
+assumptions:
+  max_daily_distance_km: 10
+  route_buffer_m: 250
