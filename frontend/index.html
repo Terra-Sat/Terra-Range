@@ -66,6 +66,10 @@ main{position:relative;min-height:0}
   </section>
   <section>
     <h2>Focus</h2>
+    <label for="basemap">Basemap</label>
+    <select id="basemap">
+      <option value="esri" selected>Esri World Street Map</option>
+    </select>
     <label for="fConst">Constituency</label><select id="fConst"></select>
     <label for="fWard">Ward</label><select id="fWard"></select>
     <label class="basemap"><input type="checkbox" id="bm" checked> Show basemap</label>
@@ -108,12 +112,20 @@ const CFG = {
     wards:          {code: ['code'], name: ['name'], parent: ['parent_code']}
   }
 };
+const BASEMAPS = {
+  esri: {
+    label: 'Esri World Street Map',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles © Esri'
+  }
+};
 const LV = [
   {id: 'counties', label: 'County', plural: 'counties', color: '#1f6b73'},
   {id: 'constituencies', label: 'Constituency', plural: 'constituencies', color: '#b9812a'},
   {id: 'wards', label: 'Ward', plural: 'wards', color: '#4a5fa8'}
 ];
 const S = {level: 'counties', feats: {}, sel: null, hover: null, constFocus: ''};
+let activeBasemap = 'esri';
 const $ = id => document.getElementById(id);
 const idx = id => LV.findIndex(l => l.id === id);
 
@@ -165,45 +177,90 @@ const visible = level => S.feats[level].filter(f => inScope(level, f));
 
 /* ---------- Map ---------- */
 let map;
+function showMapFallback() {
+  const el = document.getElementById('map');
+  if (el) {
+    el.innerHTML = '';
+    el.style.background = '#eef3ef';
+  }
+}
+function setBasemap(mode) {
+  activeBasemap = BASEMAPS[mode] ? mode : 'esri';
+  if (!map) return;
+  const cfg = BASEMAPS[activeBasemap];
+  map.getSource('basemap').tiles = [cfg.url];
+  map.getSource('basemap').attribution = cfg.attribution;
+  map.style.sourceCaches['basemap'] && map.style.sourceCaches['basemap'].clearTiles();
+  map.triggerRepaint();
+}
 function initMap(data) {
-  map = new maplibregl.Map({
-    container: 'map', center: [38, 2.9], zoom: 6, attributionControl: {compact: true},
-    style: {version: 8,
-      sources: {osm: {type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors'}},
-      layers: [{id: 'bg', type: 'background', paint: {'background-color': '#e9eee9'}},
-               {id: 'osm', type: 'raster', source: 'osm', paint: {'raster-opacity': 0.5, 'raster-saturation': -0.7}}]}
-  });
-  map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'bottom-left');
-  map.on('load', () => {
-    LV.forEach(l => {
-      map.addSource(l.id, {type: 'geojson', data: data[l.id]});
-      map.addLayer({id: l.id + '-fill', type: 'fill', source: l.id,
-        paint: {'fill-color': l.color, 'fill-opacity': 0, 'fill-opacity-transition': {duration: 350}}});
-      map.addLayer({id: l.id + '-line', type: 'line', source: l.id,
-        paint: {'line-color': l.color, 'line-opacity': 0, 'line-width': 1.4,
-                'line-opacity-transition': {duration: 350}, 'line-width-transition': {duration: 350}}});
+  const canvas = document.createElement('canvas');
+  const hasWebGL = (() => {
+    try {
+      return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    } catch (err) {
+      return false;
+    }
+  })();
+  if (!hasWebGL) {
+    showMapFallback();
+    return;
+  }
+  try {
+    const style = {
+      version: 8,
+      sources: {
+        basemap: {
+          type: 'raster',
+          tiles: [BASEMAPS[activeBasemap].url],
+          tileSize: 256,
+          attribution: BASEMAPS[activeBasemap].attribution
+        }
+      },
+      layers: [
+        {id: 'bg', type: 'background', paint: {'background-color': '#e9eee9'}},
+        {id: 'basemap', type: 'raster', source: 'basemap', paint: {'raster-opacity': 0.5, 'raster-saturation': -0.7}}
+      ]
+    };
+    map = new maplibregl.Map({
+      container: 'map', center: [38, 2.9], zoom: 6, attributionControl: {compact: true},
+      style
     });
-    const popup = new maplibregl.Popup({closeButton: false, closeOnClick: false, offset: 8});
-    map.on('mousemove', e => {
-      const lid = S.level, hit = map.queryRenderedFeatures(e.point, {layers: [lid + '-fill']})[0];
-      setHover(hit ? hit.id : null);
-      map.getCanvas().style.cursor = hit ? 'pointer' : '';
-      if (hit) popup.setLngLat(e.lngLat).setText(S.feats[lid][hit.id].n.name).addTo(map); else popup.remove();
+    map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'bottom-left');
+    map.on('load', () => {
+      LV.forEach(l => {
+        map.addSource(l.id, {type: 'geojson', data: data[l.id]});
+        map.addLayer({id: l.id + '-fill', type: 'fill', source: l.id,
+          paint: {'fill-color': l.color, 'fill-opacity': 0, 'fill-opacity-transition': {duration: 350}}});
+        map.addLayer({id: l.id + '-line', type: 'line', source: l.id,
+          paint: {'line-color': l.color, 'line-opacity': 0, 'line-width': 1.4,
+                  'line-opacity-transition': {duration: 350}, 'line-width-transition': {duration: 350}}});
+      });
+      const popup = new maplibregl.Popup({closeButton: false, closeOnClick: false, offset: 8});
+      map.on('mousemove', e => {
+        const lid = S.level, hit = map.queryRenderedFeatures(e.point, {layers: [lid + '-fill']})[0];
+        setHover(hit ? hit.id : null);
+        map.getCanvas().style.cursor = hit ? 'pointer' : '';
+        if (hit) popup.setLngLat(e.lngLat).setText(S.feats[lid][hit.id].n.name).addTo(map); else popup.remove();
+      });
+      map.on('click', e => {
+        const hit = map.queryRenderedFeatures(e.point, {layers: [S.level + '-fill']})[0];
+        if (hit) select(S.level, hit.id);
+      });
+      restyle(); applyScope(); fitAll();
     });
-    map.on('click', e => {
-      const hit = map.queryRenderedFeatures(e.point, {layers: [S.level + '-fill']})[0];
-      if (hit) select(S.level, hit.id);
-    });
-    restyle(); applyScope(); fitAll();
-  });
+  } catch (err) {
+    showMapFallback();
+  }
 }
 function setHover(id) {
-  if (S.hover === id) return;
+  if (!map || S.hover === id) return;
   if (S.hover != null) map.setFeatureState({source: S.level, id: S.hover}, {hover: false});
   S.hover = id;
   if (id != null) map.setFeatureState({source: S.level, id}, {hover: true});
 }
 function restyle() {
+  if (!map) return;
   const st = ['boolean', ['feature-state', 'sel'], false];
   LV.forEach(l => {
     const role = l.id === S.level ? 'active' : idx(l.id) === idx(S.level) - 1 ? 'context' : 'off';
@@ -214,10 +271,12 @@ function restyle() {
   });
 }
 function applyScope() {
+  if (!map) return;
   LV.forEach(l => S.feats[l.id].forEach(f => map.setFeatureState({source: l.id, id: f.id}, {dim: !inScope(l.id, f)})));
 }
-function fitBox(b) { map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {padding: {top: 60, bottom: 40, left: 40, right: 340}, duration: 700, maxZoom: 11}); }
+function fitBox(b) { if (!map) return; map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {padding: {top: 60, bottom: 40, left: 40, right: 340}, duration: 700, maxZoom: 11}); }
 function fitAll() {
+  if (!map) return;
   const fs = visible(S.level).length ? visible(S.level) : S.feats[S.level];
   fitBox(fs.reduce((b, f) => [Math.min(b[0], f.n.bbox[0]), Math.min(b[1], f.n.bbox[1]), Math.max(b[2], f.n.bbox[2]), Math.max(b[3], f.n.bbox[3])], [1e9, 1e9, -1e9, -1e9]));
 }
@@ -230,10 +289,11 @@ function setLevel(id, keepSel) {
   history.replaceState(null, '', `#${id}${S.constFocus ? ',' + S.constFocus : ''}`);
 }
 function clearSel() {
-  if (S.sel) map.setFeatureState({source: S.sel.level, id: S.sel.id}, {sel: false});
+  if (S.sel && map) map.setFeatureState({source: S.sel.level, id: S.sel.id}, {sel: false});
   S.sel = null; $('card').hidden = true;
 }
 function select(level, id) {
+  if (!map) return;
   clearSel();
   S.sel = {level, id};
   map.setFeatureState({source: level, id}, {sel: true});
@@ -333,7 +393,8 @@ async function boot() {
   $('fConst').onchange = e => setConstFocus(e.target.value);
   $('fWard').onchange = e => { if (e.target.value === '') return; S.level = 'wards'; restyle(); render(); select('wards', +e.target.value); $('fWard').value = e.target.value; };
   $('q').oninput = renderList;
-  $('bm').onchange = e => map.setPaintProperty('osm', 'raster-opacity', e.target.checked ? 0.5 : 0);
+  $('bm').onchange = e => { if (map) map.setPaintProperty('basemap', 'raster-opacity', e.target.checked ? 0.5 : 0); };
+  $('basemap').onchange = e => { setBasemap(e.target.value); };
 }
 boot();
 </script>
