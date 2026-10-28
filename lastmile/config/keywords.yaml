@@ -1,0 +1,19 @@
+join:
+  - JOIN
+  - JIUNGE
+confirm:
+  - YES
+  - NDIYO
+stop:
+  - STOP
+  - ACHA
+help:
+  - HELP
+  - MSAADA
+language:
+  en:
+    - LANG EN
+    - LUGHA EN
+  sw:
+    - LANG SW
+    - LUGHA SW

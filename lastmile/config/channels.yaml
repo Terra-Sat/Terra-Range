@@ -1,0 +1,23 @@
+sms:
+  rate_limit:
+    capacity: 10
+    refill_per_second: 1.0
+  retry:
+    base_delay_seconds: 5
+    max_delay_seconds: 900
+    max_attempts: 6
+    jitter_factor: 0.25
+  quiet_hours:
+    start: "21:00"
+    end: "06:00"
+
+whatsapp:
+  rate_limit:
+    capacity: 5
+    refill_per_second: 0.5
+  retry:
+    base_delay_seconds: 5
+    max_delay_seconds: 900
+    max_attempts: 6
+    jitter_factor: 0.25
+  fallback_after_minutes: 30

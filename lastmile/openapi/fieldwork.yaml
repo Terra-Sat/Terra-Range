@@ -1,0 +1,184 @@
+openapi: 3.1.0
+info:
+  title: Terra Range Fieldwork Contract
+  version: 1.0.0
+servers:
+  - url: http://localhost:8001/api/v1/fieldwork
+paths:
+  /advisories/:
+    get:
+      summary: List approved advisories
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: since
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: A list of advisories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Advisory'
+  /recipients/:
+    get:
+      summary: List recipients
+      responses:
+        '200':
+          description: Recipient list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Recipient'
+    post:
+      summary: Create recipient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipientInput'
+      responses:
+        '201':
+          description: Created
+  /recipients/{id}/:
+    patch:
+      summary: Update recipient
+      responses:
+        '200':
+          description: Updated recipient
+  /consents/:
+    post:
+      summary: Create consent
+      responses:
+        '201':
+          description: Created
+  /consents/{id}/withdraw/:
+    post:
+      summary: Withdraw consent
+      responses:
+        '200':
+          description: Consent withdrawn
+  /deliveries/:
+    post:
+      summary: Create delivery log
+      responses:
+        '201':
+          description: Created
+  /inbound/:
+    post:
+      summary: Forward inbound message
+      responses:
+        '201':
+          description: Created
+  /health/:
+    get:
+      summary: Liveness check
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    Advisory:
+      type: object
+      properties:
+        id:
+          type: string
+        alert_id:
+          type: string
+        ward_id:
+          type: string
+        severity:
+          type: string
+        valid_from:
+          type: string
+          format: date-time
+        valid_until:
+          type: string
+          format: date-time
+        approved_by:
+          type: string
+        approved_at:
+          type: string
+          format: date-time
+        content:
+          type: object
+          additionalProperties:
+            type: string
+        channels_allowed:
+          type: array
+          items:
+            type: string
+        contains_restricted_content:
+          type: boolean
+      required:
+        - id
+        - ward_id
+        - content
+    Recipient:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        ward_id:
+          type: string
+        phone_e164:
+          type: string
+        language:
+          type: string
+        preferred_channel:
+          type: string
+        consents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Consent'
+    RecipientInput:
+      type: object
+      properties:
+        name:
+          type: string
+        ward_id:
+          type: string
+        phone_e164:
+          type: string
+        language:
+          type: string
+        preferred_channel:
+          type: string
+    Consent:
+      type: object
+      properties:
+        id:
+          type: string
+        channel:
+          type: string
+        status:
+          type: string
+        consent_text_version:
+          type: string
+        captured_via:
+          type: string
+        captured_at:
+          type: string
+          format: date-time
+        withdrawn_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - channel
+        - status
