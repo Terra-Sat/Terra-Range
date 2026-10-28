@@ -60,7 +60,8 @@ TEMPLATES = [
     },
 ]
 
-db_config = {"ENGINE": "django.contrib.gis.db.backends.postgis", **env.db("DATABASE_URL")}
+db_config = env.db("DATABASE_URL")
+db_config["ENGINE"] = "django.contrib.gis.db.backends.postgis"
 if parsed_db.hostname not in {None, "localhost", "127.0.0.1", "postgis"}:
     db_config["OPTIONS"] = {"sslmode": "require"}
 

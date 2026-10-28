@@ -1,6 +1,6 @@
 from django.urls import path
 
-from backend.apps.geography import indicator_views
+from . import indicator_views
 
 from . import views
 
