@@ -18,7 +18,7 @@ import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import connection
-from django.db.models import Max
+from django.db.models import Avg, Max, Min
 from pyproj import Transformer
 from rasterio import features, windows
 from rasterio.io import MemoryFile
@@ -92,11 +92,11 @@ def zonal_item(item, wards):
             np.bincount(lab[good], minlength=n), np.bincount(lab[inw], minlength=n))
 
 
-def ingest_ndvi(wards, since):
+def ingest_ndvi(wards, since, full=False):
     import planetary_computer as pc
     from pystac_client import Client
     last = WardIndicator.objects.filter(indicator="ndvi").aggregate(m=Max("period_start"))["m"]
-    start = max(since, last - dt.timedelta(days=16)) if last else since      # re-read last composite
+    start = max(since, last - dt.timedelta(days=16)) if last and not full else since   # re-read last composite
     lons = [x for _, g in wards for x in (g.bounds[0], g.bounds[2])]
     lats = [y for _, g in wards for y in (g.bounds[1], g.bounds[3])]
     cat = Client.open(STAC, modifier=pc.sign_inplace)
@@ -123,10 +123,11 @@ def ingest_ndvi(wards, since):
 
 
 # ---------------------------------------------------------------- Rain
-def ingest_rain(wards, since):
+def ingest_rain(wards, since, full=False):
     cache = Path(settings.BASE_DIR) / "data" / "raw" / "chirps"
     cache.mkdir(parents=True, exist_ok=True)
     last = WardIndicator.objects.filter(indicator="rain_mm").aggregate(m=Max("period_start"))["m"]
+    last = None if full else last
     y, m = (last.year, last.month) if last else (since.year, since.month)
     if last:                                              # re-fetch the last 3 months (values can be revised)
         m -= 3
@@ -210,12 +211,26 @@ class Command(BaseCommand):
         p.add_argument("--rain-since", default="1991-01-01")
         p.add_argument("--skip-ndvi", action="store_true")
         p.add_argument("--skip-rain", action="store_true")
+        p.add_argument("--full", action="store_true", help="re-read all history instead of only new periods")
 
     def handle(self, *a, **o):
         wards = load_wards()
         self.stdout.write(f"{len(wards)} wards loaded")
         if not o["skip_ndvi"]:
-            self.stdout.write(f"NDVI rows: {ingest_ndvi(wards, dt.date.fromisoformat(o['ndvi_since']))}")
+            self.stdout.write(f"NDVI rows: {ingest_ndvi(wards, dt.date.fromisoformat(o['ndvi_since']), o["full"])}")
         if not o["skip_rain"]:
-            self.stdout.write(f"Rain rows: {ingest_rain(wards, dt.date.fromisoformat(o['rain_since']))}")
+            self.stdout.write(f"Rain rows: {ingest_rain(wards, dt.date.fromisoformat(o['rain_since']), o["full"])}")
         self.stdout.write(f"Derived rows: {derive()}")
+        self.report()
+
+    def report(self):
+        """Show what is stored, so empty or all-null results are easy to diagnose."""
+        self.stdout.write("\nindicator      rows  non-null  first        last")
+        for ind in ("ndvi", "vci", "vci3", "ndvi_anom", "rain_mm", "rain_pon3", "rain_spi3"):
+            q = WardIndicator.objects.filter(indicator=ind)
+            a = q.aggregate(lo=Min("period_start"), hi=Max("period_start"))
+            self.stdout.write(f"{ind:<12}{q.count():>7}{q.filter(value__isnull=False).count():>10}  {a['lo']}  {a['hi']}")
+        last = WardIndicator.objects.filter(indicator="ndvi").aggregate(m=Max("period_start"))["m"]
+        if last:
+            vf = WardIndicator.objects.filter(indicator="ndvi", period_start=last).aggregate(a=Avg("valid_fraction"))["a"]
+            self.stdout.write(f"latest NDVI composite {last}: mean valid pixel fraction {vf}")

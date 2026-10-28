@@ -32,7 +32,8 @@ def indicators(request):
     if request.GET.get("end"):
         qs = qs.filter(period_start__lte=request.GET["end"])
     if not request.GET.get("start") and not request.GET.get("end"):
-        latest = qs.order_by("-period_start").values_list("period_start", flat=True).first()
+        latest = (qs.filter(value__isnull=False).order_by("-period_start").values_list("period_start", flat=True).first()
+                  or qs.order_by("-period_start").values_list("period_start", flat=True).first())
         qs = qs.filter(period_start=latest) if latest else qs.none()
     rows = list(qs.values("ward_code", "period_start", "value", "valid_fraction", "source", "methodology_version"))
     meta = _ward_meta()
