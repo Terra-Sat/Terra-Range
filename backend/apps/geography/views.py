@@ -7,17 +7,36 @@ checking your real columns with:
     SELECT column_name FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'wards';
 """
+import json
 import re
 
 from django.conf import settings
 from django.db import connection
 from django.http import Http404, JsonResponse
 
-# ASSUMED column names. Edit to match your tables.
+# Real Aiven schema names discovered from PostgreSQL metadata.
 DEFAULT_LAYERS = {
-    "counties": {"table": "counties", "code": "code", "name": "name", "parent": None, "geom": "geom"},
-    "constituencies": {"table": "constituencies", "code": "code", "name": "name", "parent": "county_code", "geom": "geom"},
-    "wards": {"table": "wards", "code": "code", "name": "name", "parent": "constituency_code", "geom": "geom"},
+    "counties": {
+        "table": "counties",
+        "code": "county_code_std",
+        "name": "county_name_std",
+        "parent": None,
+        "geom": "geom",
+    },
+    "constituencies": {
+        "table": "constituencies",
+        "code": "constituency_code_std",
+        "name": "constituency_name_std",
+        "parent": "county_code",
+        "geom": "geom",
+    },
+    "wards": {
+        "table": "wards",
+        "code": "uid",
+        "name": "ward",
+        "parent": "constituency_code",
+        "geom": "geom",
+    },
 }
 IDENT = re.compile(r"^[a-z_][a-z0-9_]*$")
 
@@ -104,7 +123,8 @@ def boundaries(request, level):
     """
     with connection.cursor() as cur:
         cur.execute(sql)
-        data = cur.fetchone()[0]
+        raw = cur.fetchone()[0]
+    data = json.loads(raw) if isinstance(raw, str) else raw
     resp = JsonResponse(data)
     resp["Cache-Control"] = "public, max-age=300"
     return resp
