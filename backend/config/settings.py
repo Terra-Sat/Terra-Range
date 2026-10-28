@@ -2,14 +2,16 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
 environ.Env.read_env(BASE_DIR.parent / ".env")
 
-DEFAULT_DATABASE_URL = "postgres://terrarange:terrarange@localhost:5432/terrarange"
-DATABASE_URL = env("DATABASE_URL", default=DEFAULT_DATABASE_URL)
+DATABASE_URL = env("DATABASE_URL")
+if not DATABASE_URL:
+    raise ImproperlyConfigured("DATABASE_URL must be set to the Aiven Postgres connection string.")
 parsed_db = urlparse(DATABASE_URL)
 
 SECRET_KEY = "django-insecure-change-me"
@@ -58,7 +60,7 @@ TEMPLATES = [
     },
 ]
 
-db_config = {"ENGINE": "django.contrib.gis.db.backends.postgis", **env.db("DATABASE_URL", default=DEFAULT_DATABASE_URL)}
+db_config = {"ENGINE": "django.contrib.gis.db.backends.postgis", **env.db("DATABASE_URL")}
 if parsed_db.hostname not in {None, "localhost", "127.0.0.1", "postgis"}:
     db_config["OPTIONS"] = {"sslmode": "require"}
 
