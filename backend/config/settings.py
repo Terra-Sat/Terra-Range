@@ -1,6 +1,16 @@
 from pathlib import Path
+from urllib.parse import urlparse
+
+import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env()
+environ.Env.read_env(BASE_DIR.parent / ".env")
+
+DEFAULT_DATABASE_URL = "postgres://terrarange:terrarange@localhost:5432/terrarange"
+DATABASE_URL = env("DATABASE_URL", default=DEFAULT_DATABASE_URL)
+parsed_db = urlparse(DATABASE_URL)
 
 SECRET_KEY = "django-insecure-change-me"
 DEBUG = True
@@ -35,7 +45,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR.parent / "frontend"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -48,16 +58,11 @@ TEMPLATES = [
     },
 ]
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": "terrarange",
-        "USER": "terrarange",
-        "PASSWORD": "terrarange",
-        "HOST": "localhost",
-        "PORT": "5432",
-    }
-}
+db_config = {"ENGINE": "django.contrib.gis.db.backends.postgis", **env.db("DATABASE_URL", default=DEFAULT_DATABASE_URL)}
+if parsed_db.hostname not in {None, "localhost", "127.0.0.1", "postgis"}:
+    db_config["OPTIONS"] = {"sslmode": "require"}
+
+DATABASES = {"default": db_config}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
