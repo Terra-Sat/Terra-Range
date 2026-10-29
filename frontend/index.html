@@ -378,6 +378,31 @@
         background: #fff;
         cursor: pointer;
       }
+      #waterSummary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin: 12px 0 4px;
+      }
+      .water-stat {
+        padding: 10px 10px 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: linear-gradient(180deg, rgba(18, 93, 119, 0.03), rgba(18, 93, 119, 0.08));
+      }
+      .water-stat strong {
+        display: block;
+        font-size: 20px;
+        line-height: 1.1;
+        color: var(--lc, #1f6b73);
+      }
+      .water-stat span {
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
       /* responsive + motion: last so they override the base rules above */
       @media (max-width: 820px) {
         body {
@@ -420,6 +445,10 @@
         <h1>Marsabit boundaries</h1>
         <p>Switch between county, constituency and ward layers.</p>
       </header>
+      <section>
+        <h2>Water access</h2>
+        <div id="waterSummary" aria-live="polite"></div>
+      </section>
       <section>
         <h2>Boundary level</h2>
         <div class="seg" id="seg" role="group" aria-label="Boundary level"></div>
@@ -476,9 +505,91 @@
         { id: "constituencies", label: "Constituency", plural: "constituencies", color: "#b9812a" },
         { id: "wards", label: "Ward", plural: "wards", color: "#4a5fa8" },
       ];
-      const S = { level: "counties", feats: {}, sel: null, hover: null, constFocus: "" };
+      const S = { level: "counties", feats: {}, sel: null, hover: null, constFocus: "", water: [] };
       const $ = (id) => document.getElementById(id);
       const idx = (id) => LV.findIndex((l) => l.id === id);
+
+      function renderWaterSummary(items = []) {
+        const total = items.length;
+        const counts = { verified: 0, reported: 0, unverified: 0 };
+        items.forEach((item) => {
+          const status = item.properties && item.properties.status ? item.properties.status : "unverified";
+          if (counts[status] != null) counts[status] += 1;
+        });
+        const summary = [
+          { label: "Total", value: total },
+          { label: "Verified", value: counts.verified },
+          { label: "Reported", value: counts.reported + counts.unverified },
+        ];
+        const container = document.getElementById("waterSummary");
+        if (!container) return;
+        container.innerHTML = summary
+          .map(
+            (stat) => `
+              <div class="water-stat">
+                <strong>${stat.value}</strong>
+                <span>${stat.label}</span>
+              </div>
+            `,
+          )
+          .join("");
+      }
+
+      async function loadWaterPoints() {
+        try {
+          const r = await fetch("/api/v1/water/points/");
+          if (!r.ok) throw new Error(`/api/v1/water/points/ returned ${r.status}`);
+          const gj = await r.json();
+          S.water = gj.features || [];
+          renderWaterSummary(S.water);
+          if (map && map.isStyleLoaded()) addWaterPointsLayer();
+          return S.water;
+        } catch (e) {
+          console.warn("Water points unavailable:", e);
+          S.water = [];
+          renderWaterSummary([]);
+          return [];
+        }
+      }
+
+      function addWaterPointsLayer() {
+        if (!map || !map.isStyleLoaded()) return;
+        if (!map.getSource("waterpoints")) {
+          map.addSource("waterpoints", { type: "geojson", data: { type: "FeatureCollection", features: S.water } });
+          map.addLayer({
+            id: "waterpoints",
+            type: "circle",
+            source: "waterpoints",
+            paint: {
+              "circle-radius": ["case", ["==", ["get", "status"], "verified"], 6, ["==", ["get", "status"], "reported"], 5, 4],
+              "circle-color": [
+                "case",
+                ["==", ["get", "status"], "verified"], "#1a9e62",
+                ["==", ["get", "status"], "reported"], "#e6a934",
+                "#c34444",
+              ],
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 1.5,
+              "circle-opacity": 0.95,
+            },
+          });
+          map.addLayer({
+            id: "waterpoints-labels",
+            type: "symbol",
+            source: "waterpoints",
+            layout: {
+              "text-field": ["coalesce", ["get", "name"], "Water point"],
+              "text-font": ["Open Sans Regular"],
+              "text-size": 10,
+              "text-offset": [0, 1.2],
+              "text-anchor": "top",
+            },
+            paint: { "text-color": "#234", "text-halo-color": "#ffffff", "text-halo-width": 1 },
+          });
+        } else {
+          map.getSource("waterpoints").setData({ type: "FeatureCollection", features: S.water });
+        }
+      }
 
       /* ---------- Data ---------- */
       const pick = (p, keys) => {
@@ -613,6 +724,7 @@
           });
           restyle();
           applyScope();
+          addWaterPointsLayer();
           fitAll();
           document.dispatchEvent(new Event("terra:map"));
         });
@@ -851,6 +963,7 @@
           LV.forEach(
             (l) => ($("seg").querySelector(`[data-id=${l.id}] small`).textContent = S.feats[l.id].length),
           );
+          await loadWaterPoints();
           const h = location.hash.slice(1).split(",");
           if (LV.some((l) => l.id === h[0])) S.level = h[0];
           if (h[1] && find("constituencies", h[1])) S.constFocus = h[1];

@@ -9,9 +9,11 @@ from .models import WaterPoint
 
 
 def _status(p):
-    if p["verified_status"].startswith("verified"):
+    verified = str(p.get("verified_status") or "").lower()
+    if verified.startswith("verified"):
         return "verified"
-    return "reported" if p["reported_status"] != "unknown" else "unverified"
+    reported = str(p.get("reported_status") or "unknown").lower()
+    return "reported" if reported != "unknown" else "unverified"
 
 
 def _public():
