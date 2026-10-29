@@ -9,6 +9,7 @@ Verify the CHIRPS URL pattern by opening https://data.chc.ucsb.edu/products/CHIR
 """
 import datetime as dt
 import gzip
+import time
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +35,7 @@ from ...views import _layers, _q
 METH = "1.0"
 STAC = "https://planetarycomputer.microsoft.com/api/stac/v1"
 CHIRPS = "https://data.chc.ucsb.edu/products/CHIRPS-2.0/africa_monthly/tifs/chirps-v2.0.{y}.{m:02d}.tif.gz"
+FALLBACKS = []                  # counts quality-band fallbacks for the end-of-run note
 MIN_VALID = 0.5                 # publish a ward NDVI only if >= 50% of its pixels are valid
 VCI_BASE = (2001, 2025)         # baseline years for VCI / anomaly
 RAIN_BASE = (1991, 2020)        # baseline years for percent-of-normal and SPI
@@ -61,6 +63,20 @@ def clean(v):
 
 
 # ---------------------------------------------------------------- NDVI
+def read_ok_mask(assets, win):
+    """Quality mask from pixel_reliability; falls back to the VI_Quality bits if that band is unreadable."""
+    if "250m_16_days_pixel_reliability" in assets:
+        try:
+            with rasterio.open(assets["250m_16_days_pixel_reliability"].href) as s2:
+                qa = s2.read(1, window=win)
+            return (qa == 0) | (qa == 1)                  # good or marginal
+        except rasterio.errors.RasterioIOError:
+            FALLBACKS.append(1)
+    with rasterio.open(assets["250m_16_days_VI_Quality"].href) as s2:
+        qa = s2.read(1, window=win)
+    return (qa & 3) <= 1
+
+
 def zonal_item(item, wards):
     """Read the county window once per item, then reduce per ward with a label raster."""
     a = item.assets
@@ -75,14 +91,7 @@ def zonal_item(item, wards):
         except windows.WindowError:
             return None
         nd, tf = src.read(1, window=win), src.window_transform(win)
-    if "250m_16_days_pixel_reliability" in a:
-        with rasterio.open(a["250m_16_days_pixel_reliability"].href) as s2:
-            qa = s2.read(1, window=win)
-        ok = (qa == 0) | (qa == 1)                    # good or marginal
-    else:
-        with rasterio.open(a["250m_16_days_VI_Quality"].href) as s2:
-            qa = s2.read(1, window=win)
-        ok = (qa & 3) <= 1
+    ok = read_ok_mask(a, win)
     lab = features.rasterize([(g, i + 1) for i, g in enumerate(geoms)], out_shape=nd.shape,
                              transform=tf, fill=0, dtype="int32")
     inw = lab > 0
@@ -92,34 +101,68 @@ def zonal_item(item, wards):
             np.bincount(lab[good], minlength=n), np.bincount(lab[inw], minlength=n))
 
 
-def ingest_ndvi(wards, since, full=False):
+def zonal_with_retry(item, wards, pc, tries=3):
+    """Sign the item right before reading (tokens expire) and retry transient HTTP errors."""
+    for attempt in range(tries):
+        try:
+            return zonal_item(pc.sign(item), wards)
+        except rasterio.errors.RasterioIOError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
+
+
+def ingest_ndvi(wards, since, full=False, log=print):
+    """Resumable: composites already stored are skipped (the newest is always re-read), so a re-run
+    after an error fills gaps cheaply. Rows are saved every 20 composites, so a crash loses little."""
     import planetary_computer as pc
     from pystac_client import Client
-    last = WardIndicator.objects.filter(indicator="ndvi").aggregate(m=Max("period_start"))["m"]
-    start = max(since, last - dt.timedelta(days=16)) if last and not full else since   # re-read last composite
+    existing = set(WardIndicator.objects.filter(indicator="ndvi").values_list("period_start", flat=True))
+    newest = max(existing, default=None)
     lons = [x for _, g in wards for x in (g.bounds[0], g.bounds[2])]
     lats = [y for _, g in wards for y in (g.bounds[1], g.bounds[3])]
-    cat = Client.open(STAC, modifier=pc.sign_inplace)
+    cat = Client.open(STAC)                               # unsigned: each item is signed just before reading
     items = cat.search(collections=["modis-13Q1-061"], bbox=[min(lons), min(lats), max(lons), max(lats)],
-                       datetime=f"{start}/{dt.date.today()}").item_collection()
-    acc = {}
+                       datetime=f"{since}/{dt.date.today()}").item_collection()
+    by_date = {}
     for it in items:
-        z = zonal_item(it, wards)
-        if z is None:
-            continue
         d = pd.Timestamp(it.properties.get("start_datetime") or it.datetime).date()
-        cur = acc.setdefault(d, [np.zeros_like(z[0]), np.zeros_like(z[1]), np.zeros_like(z[2])])
-        for k in range(3):
-            cur[k] += z[k]
-    rows = []
-    for d, (sm, cnt, tot) in acc.items():
-        for i, (code, _) in enumerate(wards, start=1):
-            frac = cnt[i] / tot[i] if tot[i] else 0
-            rows.append(dict(ward_code=code, indicator="ndvi", period_start=d, period_end=d + dt.timedelta(days=15),
-                             value=float(sm[i] / cnt[i]) if frac >= MIN_VALID else None,
-                             valid_fraction=float(frac), source="modis-13Q1-061"))
+        by_date.setdefault(d, []).append(it)
+    todo = [d for d in sorted(by_date) if full or d not in existing or d == newest]
+    log(f"NDVI: {len(by_date)} composites available, {len(todo)} to read")
+    rows, done, failed = [], 0, []
+    env = dict(GDAL_HTTP_MAX_RETRY=3, GDAL_HTTP_RETRY_DELAY=2,
+               GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif")
+    with rasterio.Env(**env):
+        for d in todo:
+            acc = None
+            try:
+                for it in by_date[d]:
+                    z = zonal_with_retry(it, wards, pc)
+                    if z is not None:
+                        acc = z if acc is None else tuple(x + y for x, y in zip(acc, z))
+            except Exception as e:                        # one bad composite must not lose the run
+                failed.append((d, str(e)[:80]))
+                continue
+            if acc is None:
+                continue
+            sm, cnt, tot = acc
+            for i, (code, _) in enumerate(wards, start=1):
+                frac = cnt[i] / tot[i] if tot[i] else 0
+                rows.append(dict(ward_code=code, indicator="ndvi", period_start=d, period_end=d + dt.timedelta(days=15),
+                                 value=float(sm[i] / cnt[i]) if frac >= MIN_VALID else None,
+                                 valid_fraction=float(frac), source="modis-13Q1-061"))
+            done += 1
+            if done % 20 == 0:
+                save(rows)
+                rows = []
+                log(f"  NDVI {done}/{len(todo)} composites (at {d})")
     save(rows)
-    return len(rows)
+    if FALLBACKS:
+        log(f"Note: pixel_reliability unreadable {len(FALLBACKS)} time(s); VI_Quality used instead")
+    if failed:
+        log(f"{len(failed)} composite(s) failed (first: {failed[0]}). Re-run the command to retry only those.")
+    return done
 
 
 # ---------------------------------------------------------------- Rain
@@ -217,9 +260,11 @@ class Command(BaseCommand):
         wards = load_wards()
         self.stdout.write(f"{len(wards)} wards loaded")
         if not o["skip_ndvi"]:
-            self.stdout.write(f"NDVI rows: {ingest_ndvi(wards, dt.date.fromisoformat(o['ndvi_since']), o["full"])}")
+            since = dt.date.fromisoformat(o["ndvi_since"])
+            self.stdout.write(f"NDVI composites processed: {ingest_ndvi(wards, since, o['full'], self.stdout.write)}")
         if not o["skip_rain"]:
-            self.stdout.write(f"Rain rows: {ingest_rain(wards, dt.date.fromisoformat(o['rain_since']), o["full"])}")
+            since = dt.date.fromisoformat(o["rain_since"])
+            self.stdout.write(f"Rain rows: {ingest_rain(wards, since, o['full'])}")
         self.stdout.write(f"Derived rows: {derive()}")
         self.report()
 
