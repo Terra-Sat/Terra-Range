@@ -4,72 +4,75 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Terra Range · Administrative boundaries</title>
+    <script>
+      /* Set theme before first paint to avoid a light flash */
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("theme"); } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"
     />
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
     <style>
       :root {
-        --ink: #18292b;
-        --muted: #5c6b6a;
-        --paper: #f4f6f3;
-        --panel: #fff;
-        --line: #d5dcd6;
-        --bad: #b3412e;
-        --ok: #2d6a4f;
-        --counties: #1f6b73;
-        --constituencies: #b9812a;
-        --wards: #4a5fa8;
+        color-scheme: light;
+        --ink: #1f2933;
+        --muted: #52606d;
+        --paper: #f4f5f2;
+        --surface: #ffffff;
+        --panel: rgba(255, 255, 255, 0.92);
+        --line: #cfd5d2;
+        --bad: #c0392b;
+        --ok: #2e7d32;
+        --warn: #8a5a00;
+        --mapbg: #e9eee9;
+        --lc: #1f6b73;
       }
-      * {
-        box-sizing: border-box;
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --ink: #e6e8e6;
+        --muted: #a3adb0;
+        --paper: #111517;
+        --surface: #1b2124;
+        --panel: rgba(27, 33, 36, 0.94);
+        --line: #334046;
+        --bad: #ef8a80;
+        --ok: #81c784;
+        --warn: #e6b450;
+        --mapbg: #1a2022;
       }
-      html,
+      * { box-sizing: border-box; }
+      html { height: 100%; }
       body {
         height: 100%;
         margin: 0;
-      }
-      body {
-        font:
-          15px/1.45 "Atkinson Hyperlegible",
-          system-ui,
-          sans-serif;
-        color: var(--ink);
         background: var(--paper);
+        color: var(--ink);
+        font: 15px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         display: grid;
         grid-template-columns: 350px 1fr;
       }
       aside {
         background: var(--panel);
         border-right: 1px solid var(--line);
+        backdrop-filter: blur(12px);
         display: flex;
         flex-direction: column;
         min-height: 0;
         overflow: auto;
       }
-      header {
-        padding: 16px 18px 12px;
-      }
-      h1 {
-        font-size: 19px;
-        margin: 0 0 2px;
-      }
-      header p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 13px;
-      }
-      section {
-        padding: 12px 18px;
-        border-top: 1px solid var(--line);
-      }
-      h2 {
-        font-size: 13px;
-        margin: 0 0 8px;
-        color: var(--muted);
-        font-weight: 700;
-      }
+      header { padding: 16px 18px 12px; }
+      h1 { font-size: 19px; margin: 0 0 2px; }
+      header p { margin: 0; color: var(--muted); font-size: 13px; }
+      section { padding: 12px 18px; border-top: 1px solid var(--line); }
+      h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 700; }
       .seg {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -79,58 +82,38 @@
       }
       .seg button {
         border: 0;
-        background: #fff;
+        background: var(--surface);
+        color: var(--ink);
         padding: 9px 4px;
         font: inherit;
         cursor: pointer;
         border-right: 1px solid var(--line);
       }
-      .seg button:last-child {
-        border-right: 0;
-      }
-      .seg button[aria-pressed="true"] {
-        color: #fff;
-        background: var(--lc);
-      }
-      .seg small {
-        display: block;
-        font-size: 11px;
-        opacity: 0.8;
-      }
+      .seg button:last-child { border-right: 0; }
+      .seg button[aria-pressed="true"] { color: #fff; background: var(--lc); }
+      .seg small { display: block; font-size: 11px; opacity: 0.8; }
       button:focus-visible,
       select:focus-visible,
-      input:focus-visible {
-        outline: 3px solid #f2b705;
-        outline-offset: 1px;
-      }
+      input:focus-visible { outline: 3px solid #f2b705; outline-offset: 1px; }
       select,
       input[type="search"] {
         width: 100%;
         font: inherit;
+        color: var(--ink);
         padding: 7px 8px;
         border: 1px solid var(--line);
         border-radius: 6px;
-        background: #fff;
+        background: var(--surface);
         margin-bottom: 8px;
       }
-      label {
-        font-size: 13px;
-        color: var(--muted);
-        display: block;
-        margin-bottom: 2px;
-      }
-      #list {
-        max-height: 210px;
-        overflow: auto;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
+      label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 2px; }
+      #list { max-height: 210px; overflow: auto; margin: 0; padding: 0; list-style: none; }
       #list button {
         width: 100%;
         text-align: left;
         border: 0;
         background: none;
+        color: var(--ink);
         padding: 6px 8px;
         font: inherit;
         border-left: 4px solid transparent;
@@ -139,42 +122,23 @@
         justify-content: space-between;
         gap: 8px;
       }
-      #list button:hover {
-        background: var(--paper);
-      }
+      #list button:hover { background: var(--paper); }
       #list button[aria-current="true"] {
         border-left-color: var(--lc);
         background: var(--paper);
         font-weight: 700;
       }
-      #list span + span {
-        color: var(--muted);
-        font-size: 13px;
-        white-space: nowrap;
-      }
-      #checks {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-        font-size: 13px;
-      }
-      #checks li::before {
-        content: "OK  ";
-        color: var(--ok);
-        font-weight: 700;
-      }
-      #checks li.bad::before {
-        content: "CHECK  ";
-        color: var(--bad);
-      }
+      #list span + span { color: var(--muted); font-size: 13px; white-space: nowrap; }
+      #checks { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+      #checks li::before { content: "OK  "; color: var(--ok); font-weight: 700; }
+      #checks li.bad::before { content: "CHECK  "; color: var(--bad); }
       main {
         position: relative;
         min-height: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
       }
-      #map {
-        position: absolute;
-        inset: 0;
-      }
+      #map { position: absolute; inset: 0; }
       #crumbs {
         position: absolute;
         top: 12px;
@@ -184,10 +148,12 @@
         gap: 6px;
         flex-wrap: wrap;
         pointer-events: none;
+        z-index: 2;
       }
       #crumbs button {
         pointer-events: auto;
-        background: #fff;
+        background: var(--surface);
+        color: var(--ink);
         border: 1px solid var(--line);
         border-radius: 999px;
         padding: 5px 12px;
@@ -200,19 +166,16 @@
         right: 12px;
         bottom: 28px;
         width: 290px;
-        background: #fff;
+        z-index: 2;
+        background: var(--surface);
+        color: var(--ink);
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 14px 16px;
-        box-shadow: 0 6px 24px rgba(24, 41, 43, 0.15);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
       }
-      #card[hidden] {
-        display: none;
-      }
-      #card h3 {
-        margin: 0;
-        font-size: 17px;
-      }
+      #card[hidden] { display: none; }
+      #card h3 { margin: 0; font-size: 17px; }
       #card dl {
         display: grid;
         grid-template-columns: auto 1fr;
@@ -220,31 +183,22 @@
         margin: 8px 0 10px;
         font-size: 14px;
       }
-      #card dt {
-        color: var(--muted);
-      }
-      #card dd {
-        margin: 0;
-      }
-      #card .row {
-        display: flex;
-        gap: 8px;
-      }
+      #card dt { color: var(--muted); }
+      #card dd { margin: 0; }
+      #card .row { display: flex; gap: 8px; }
       #card button {
         font: inherit;
         font-size: 14px;
         padding: 6px 10px;
         border-radius: 6px;
         border: 1px solid var(--line);
-        background: #fff;
+        background: var(--surface);
+        color: var(--ink);
         cursor: pointer;
       }
-      #card button.primary {
-        background: var(--lc);
-        color: #fff;
-        border-color: var(--lc);
-      }
-      #err {
+      #card button.primary { background: var(--lc); color: #fff; border-color: var(--lc); }
+      #err,
+      #note {
         margin: 12px 18px;
         padding: 10px;
         border: 1px solid var(--bad);
@@ -252,50 +206,45 @@
         color: var(--bad);
         font-size: 13px;
       }
-      #err[hidden] {
-        display: none;
+      #note { border-color: var(--warn); color: var(--warn); margin: 0 0 8px; }
+      #err[hidden],
+      #note[hidden] { display: none; }
+      .maplibregl-popup-content {
+        background: var(--surface);
+        color: var(--ink);
+        font: 13px "Atkinson Hyperlegible", system-ui, sans-serif;
+        padding: 6px 10px;
       }
-      .basemap {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        font-size: 13px;
-      }
+      .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--surface); }
+      .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--surface); }
+      .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--surface); }
+      .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--surface); }
 
       /* ---- indicator layer ---- */
-      main {
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr) auto;
-      }
       #kpis {
         grid-row: 1;
-      }
-      #mapwrap {
-        grid-row: 2;
-        position: relative;
-        min-height: 0;
-      }
-      #dock {
-        grid-row: 3;
-        height: 290px;
-      }
-      main.no-dock #dock {
-        display: none;
-      }
-      #hm {
-        position: absolute;
-        left: 0;
-        top: 0;
-      }
-      #kpis {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 10px;
         padding: 10px 12px;
         background: var(--paper);
       }
+      #kpis:empty { display: none; }
+      #mapwrap { grid-row: 2; position: relative; min-height: 0; }
+      #dock {
+        grid-row: 3;
+        height: 290px;
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1.4fr;
+        gap: 1px;
+        background: var(--line);
+        border-top: 1px solid var(--line);
+        min-height: 0;
+      }
+      main.no-dock #dock { display: none; }
+      #hm { position: absolute; left: 0; top: 0; }
       .kpi {
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--line);
         border-radius: 8px;
         padding: 8px 12px;
@@ -309,73 +258,30 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      .kpi b {
-        display: block;
-        font-size: 24px;
-        line-height: 1.25;
-      }
-      #dock {
-        display: grid;
-        grid-template-columns: 1.2fr 1fr 1.4fr;
-        gap: 1px;
-        background: var(--line);
-        border-top: 1px solid var(--line);
-        min-height: 0;
-      }
+      .kpi b { display: block; font-size: 24px; line-height: 1.25; }
       #dock > div {
-        background: #fff;
+        background: var(--surface);
         padding: 8px 12px;
         display: flex;
         flex-direction: column;
         min-height: 0;
         min-width: 0;
       }
-      .dh {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 8px;
-      }
-      .dh h2 {
-        margin: 0 0 4px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .dh select {
-        width: auto;
-        margin: 0 0 4px;
-        padding: 2px 6px;
-        font-size: 12px;
-      }
-      .cv {
-        flex: 1;
-        position: relative;
-        min-height: 0;
-      }
-      .legend {
-        height: 10px;
-        border-radius: 5px;
-        margin: 8px 0 2px;
-        border: 1px solid var(--line);
-      }
-      .lg {
-        display: flex;
-        justify-content: space-between;
-        font-size: 12px;
-        color: var(--muted);
-      }
-      input[type="range"] {
-        width: 100%;
-        accent-color: var(--lc);
-      }
+      .dh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+      .dh h2 { margin: 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .dh select { width: auto; margin: 0 0 4px; padding: 2px 6px; font-size: 12px; }
+      .cv { flex: 1; position: relative; min-height: 0; }
+      .legend { height: 10px; border-radius: 5px; margin: 8px 0 2px; border: 1px solid var(--line); }
+      .lg { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+      input[type="range"] { width: 100%; accent-color: var(--lc); }
       .mini {
         font: inherit;
         font-size: 12px;
         padding: 3px 8px;
         border: 1px solid var(--line);
         border-radius: 6px;
-        background: #fff;
+        background: var(--surface);
+        color: var(--ink);
         cursor: pointer;
       }
       #waterSummary {
@@ -388,14 +294,9 @@
         padding: 10px 10px 8px;
         border: 1px solid var(--line);
         border-radius: 10px;
-        background: linear-gradient(180deg, rgba(18, 93, 119, 0.03), rgba(18, 93, 119, 0.08));
+        background: var(--surface);
       }
-      .water-stat strong {
-        display: block;
-        font-size: 20px;
-        line-height: 1.1;
-        color: var(--lc, #1f6b73);
-      }
+      .water-stat strong { display: block; font-size: 20px; line-height: 1.1; color: var(--lc, #1f6b73); }
       .water-stat span {
         display: block;
         font-size: 11px;
@@ -405,37 +306,16 @@
       }
       /* responsive + motion: last so they override the base rules above */
       @media (max-width: 820px) {
-        body {
-          grid-template-columns: 1fr;
-          grid-template-rows: auto auto;
-          height: auto;
-        }
-        main {
-          order: -1;
-          grid-template-rows: auto 55vh auto;
-        }
-        aside {
-          border-right: 0;
-        }
-        #card {
-          width: auto;
-          left: 12px;
-        }
-        #kpis {
-          grid-template-columns: 1fr 1fr;
-        }
-        #dock {
-          grid-template-columns: 1fr;
-          height: auto;
-        }
-        #dock > div {
-          height: 260px;
-        }
+        body { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+        main { order: -1; grid-template-rows: auto 55vh auto; }
+        aside { border-right: 0; }
+        #card { width: auto; left: 12px; }
+        #kpis { grid-template-columns: 1fr 1fr; }
+        #dock { grid-template-columns: 1fr; height: auto; }
+        #dock > div { height: 260px; }
       }
       @media (prefers-reduced-motion: reduce) {
-        * {
-          transition: none !important;
-        }
+        * { transition: none !important; }
       }
     </style>
   </head>
@@ -444,6 +324,7 @@
       <header>
         <h1>Marsabit boundaries</h1>
         <p>Switch between county, constituency and ward layers.</p>
+        <button id="themeToggle" class="mini" style="margin-top: 8px" type="button">Toggle dark mode</button>
       </header>
       <section>
         <h2>Water access</h2>
@@ -455,11 +336,13 @@
       </section>
       <section>
         <h2>Focus</h2>
-        <label for="fConst">Constituency</label
-        ><select id="fConst"></select>
-        <label for="fWard">Ward</label
-        ><select id="fWard"></select>
-        <label class="basemap"><input type="checkbox" id="bm" checked /> Show basemap</label>
+        <label for="fConst">Constituency</label>
+        <select id="fConst"></select>
+        <label for="fWard">Ward</label>
+        <select id="fWard"></select>
+        <label for="bmSel">Basemap</label>
+        <select id="bmSel"></select>
+        <div id="note" role="status" hidden></div>
       </section>
       <section>
         <h2 id="listTitle">Units</h2>
@@ -483,14 +366,25 @@
       <div id="dock"></div>
     </main>
 
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
     <script>
+      "use strict";
+      /* =====================================================================
+         Terra Range dashboard (single script).
+         Changes from the previous version are marked FIX in comments.
+         ===================================================================== */
+
       /* ---------- Configuration ---------- */
       const CFG = {
         source: "api", // 'api' = Django endpoints (needed for indicators), 'static' = data/*.geojson
         api: "/api/v1/boundaries/", // returns normalised code / name / parent_code / area_km2
+        waterApi: "/api/v1/water/points/",
         staticDir: "data/",
+        // If the API call for boundaries fails, try data/<level>.geojson before giving up.
+        // Indicators still need the API, so they are disabled in fallback mode.
+        staticFallback: true,
+        fetchTimeoutMs: 20000,
         expected: { counties: 1, constituencies: 4, wards: 20 },
         // Property names per level. The API returns code/name/parent_code; for static GeoJSON
         // edit these to match your GeoPackage columns (first match wins).
@@ -499,99 +393,193 @@
           constituencies: { code: ["code"], name: ["name"], parent: ["parent_code"] },
           wards: { code: ["code"], name: ["name"], parent: ["parent_code"] },
         },
+        /* Default basemap: 'auto' (CARTO light/dark following the theme), or one of the BASEMAPS ids, or 'none'. */
+        basemap: "auto",
+        /* Glyphs are only needed for the water point name labels on the map. Hover popups work without them.
+           LIMITATION: this URL and font name were not verified against a live request while writing this file.
+           For production, self-host glyphs and point this at your own server. Set to null to disable map labels. */
+        glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+        labelFont: ["Noto Sans Regular"],
       };
       const LV = [
         { id: "counties", label: "County", plural: "counties", color: "#1f6b73" },
         { id: "constituencies", label: "Constituency", plural: "constituencies", color: "#b9812a" },
         { id: "wards", label: "Ward", plural: "wards", color: "#4a5fa8" },
       ];
-      const S = { level: "counties", feats: {}, sel: null, hover: null, constFocus: "", water: [] };
+
+      /* ---------- Basemaps ----------
+         FIX: the old style defined an "esri" source but its layer used a source called "osm", which does not
+         exist. MapLibre rejects the style, so the map never loaded. Here every layer references a defined source.
+         POLICY NOTES (check the current terms before production use, they change):
+         - CARTO: free basemaps are for non-commercial use with attribution; commercial use needs a CARTO plan.
+         - Esri World Imagery: attribution is mandatory; production use generally expects an ArcGIS account/API key.
+         - OpenStreetMap's own tile server is deliberately NOT used. It enforces its tile usage policy (valid Referer,
+           no heavy or embedded-app use) and blocks clients that do not comply.
+         - If the active basemap keeps failing, fallbackBasemap() steps down: CARTO, then Esri topo, then Esri imagery, then none.
+         If TerraSat is serving this commercially, use a paid or self-hosted tile provider and replace the URLs below. */
+      const R = window.devicePixelRatio > 1 ? "@2x" : "";
+      const sub = (t) => ["a", "b", "c", "d"].map((s) => t.replace("{s}", s));
+      const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+      const BASEMAPS = {
+        "carto-light": {
+          label: "Light (CARTO)",
+          tiles: sub(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}${R}.png`),
+          maxzoom: 20,
+          attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>`,
+          paint: { "raster-opacity": 1 },
+        },
+        "carto-dark": {
+          label: "Dark (CARTO)",
+          tiles: sub(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}${R}.png`),
+          maxzoom: 20,
+          attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>`,
+          paint: { "raster-opacity": 1 },
+        },
+        esri: {
+          label: "Satellite (Esri)",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+          maxzoom: 19,
+          attribution: "Tiles © Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+          paint: { "raster-opacity": 0.9 },
+        },
+        "esri-topo": {
+          label: "Topographic (Esri)",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"],
+          maxzoom: 19,
+          attribution: "Esri, HERE, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, and the GIS User Community",
+          paint: { "raster-opacity": 0.9 },
+        },
+      };
+
+      const S = {
+        level: "counties",
+        feats: {},
+        sel: null,
+        hover: null,
+        constFocus: "",
+        water: [],
+        basemap: CFG.basemap,
+        tileErrors: 0,
+        dataSource: CFG.source,
+      };
       const $ = (id) => document.getElementById(id);
       const idx = (id) => LV.findIndex((l) => l.id === id);
+      const root = document.documentElement;
+      const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+      const isDark = () => root.dataset.theme === "dark";
+      const safeGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+      const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+      const esc = (s) =>
+        String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-      function renderWaterSummary(items = []) {
-        const total = items.length;
+      let map = null;
+      let styleReady = false; /* FIX: map.isStyleLoaded() is false while tiles load, so it cannot gate setData */
+      let mapReady = false; /* map style loaded and layers added (does not depend on boundary data) */
+      let dataReady = false; /* boundary data loaded and pushed into the map sources */
+      let activeBasemap = null;
+
+      function showError(msg) {
+        const el = $("err");
+        el.hidden = false;
+        el.textContent = msg;
+      }
+      function showNote(msg) {
+        const el = $("note");
+        el.hidden = !msg;
+        el.textContent = msg || "";
+      }
+
+      /* ---------- Network helpers ---------- */
+      async function getJSON(url) {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), CFG.fetchTimeoutMs);
+        try {
+          const r = await fetch(url, {
+            headers: { Accept: "application/json" },
+            credentials: "same-origin",
+            signal: ctl.signal,
+          });
+          if (!r.ok) throw new Error(`${url} returned ${r.status}`);
+          return await r.json();
+        } catch (e) {
+          if (e.name === "AbortError") throw new Error(`${url} timed out after ${CFG.fetchTimeoutMs / 1000}s`);
+          throw e;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      /* Accepts a plain FeatureCollection or a DRF-style paginated {results: FeatureCollection}. */
+      const asFeatures = (j) => (j && (j.features || (j.results && j.results.features))) || null;
+
+      /* ---------- Water points ---------- */
+      function renderWaterSummary(items) {
         const counts = { verified: 0, reported: 0, unverified: 0 };
         items.forEach((item) => {
           const status = item.properties && item.properties.status ? item.properties.status : "unverified";
           if (counts[status] != null) counts[status] += 1;
         });
         const summary = [
-          { label: "Total", value: total },
+          { label: "Total", value: items.length },
           { label: "Verified", value: counts.verified },
           { label: "Reported", value: counts.reported + counts.unverified },
         ];
-        const container = document.getElementById("waterSummary");
-        if (!container) return;
-        container.innerHTML = summary
-          .map(
-            (stat) => `
-              <div class="water-stat">
-                <strong>${stat.value}</strong>
-                <span>${stat.label}</span>
-              </div>
-            `,
-          )
+        $("waterSummary").innerHTML = summary
+          .map((s) => `<div class="water-stat"><strong>${s.value}</strong><span>${s.label}</span></div>`)
           .join("");
       }
-
       async function loadWaterPoints() {
         try {
-          const r = await fetch("/api/v1/water/points/");
-          if (!r.ok) throw new Error(`/api/v1/water/points/ returned ${r.status}`);
-          const gj = await r.json();
-          S.water = gj.features || [];
-          renderWaterSummary(S.water);
-          if (map && map.isStyleLoaded()) addWaterPointsLayer();
-          return S.water;
+          const feats = asFeatures(await getJSON(CFG.waterApi));
+          if (!feats) throw new Error("response has no features array");
+          S.water = feats.filter((f) => f && f.geometry && f.geometry.type === "Point");
         } catch (e) {
           console.warn("Water points unavailable:", e);
           S.water = [];
-          renderWaterSummary([]);
-          return [];
         }
+        renderWaterSummary(S.water);
+        addWaterPointsLayer();
       }
-
       function addWaterPointsLayer() {
-        if (!map || !map.isStyleLoaded()) return;
-        if (!map.getSource("waterpoints")) {
-          map.addSource("waterpoints", { type: "geojson", data: { type: "FeatureCollection", features: S.water } });
-          map.addLayer({
-            id: "waterpoints",
-            type: "circle",
-            source: "waterpoints",
-            paint: {
-              "circle-radius": ["case", ["==", ["get", "status"], "verified"], 6, ["==", ["get", "status"], "reported"], 5, 4],
-              "circle-color": [
-                "case",
-                ["==", ["get", "status"], "verified"], "#1a9e62",
-                ["==", ["get", "status"], "reported"], "#e6a934",
-                "#c34444",
-              ],
-              "circle-stroke-color": "#ffffff",
-              "circle-stroke-width": 1.5,
-              "circle-opacity": 0.95,
-            },
-          });
+        if (!styleReady) return; /* the map 'load' handler calls this again once the style is ready */
+        const data = { type: "FeatureCollection", features: S.water };
+        if (map.getSource("waterpoints")) return map.getSource("waterpoints").setData(data);
+        map.addSource("waterpoints", { type: "geojson", data });
+        map.addLayer({
+          id: "waterpoints",
+          type: "circle",
+          source: "waterpoints",
+          paint: {
+            "circle-radius": ["case", ["==", ["get", "status"], "verified"], 6, ["==", ["get", "status"], "reported"], 5, 4],
+            "circle-color": [
+              "case",
+              ["==", ["get", "status"], "verified"], "#1a9e62",
+              ["==", ["get", "status"], "reported"], "#e6a934",
+              "#c34444",
+            ],
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 1.5,
+            "circle-opacity": 0.95,
+          },
+        });
+        if (CFG.glyphs) {
           map.addLayer({
             id: "waterpoints-labels",
             type: "symbol",
             source: "waterpoints",
+            minzoom: 8,
             layout: {
               "text-field": ["coalesce", ["get", "name"], "Water point"],
-              "text-font": ["Open Sans Regular"],
+              "text-font": CFG.labelFont,
               "text-size": 10,
               "text-offset": [0, 1.2],
               "text-anchor": "top",
             },
-            paint: { "text-color": "#234", "text-halo-color": "#ffffff", "text-halo-width": 1 },
+            paint: { "text-color": "#223344", "text-halo-color": "#ffffff", "text-halo-width": 1 },
           });
-        } else {
-          map.getSource("waterpoints").setData({ type: "FeatureCollection", features: S.water });
         }
       }
 
-      /* ---------- Data ---------- */
+      /* ---------- Boundary data ---------- */
       const pick = (p, keys) => {
         for (const k of keys) if (p[k] != null && p[k] !== "") return String(p[k]);
         return "";
@@ -618,14 +606,28 @@
         })(g.coordinates);
         return b;
       }
+      async function fetchLevel(level, source) {
+        const url = source === "api" ? `${CFG.api}${level}/` : `${CFG.staticDir}${level}.geojson`;
+        const feats = asFeatures(await getJSON(url));
+        if (!feats) throw new Error(`${url} did not return GeoJSON features`);
+        return feats;
+      }
       async function load(level) {
-        const url = CFG.source === "api" ? `${CFG.api}${level}/` : `${CFG.staticDir}${level}.geojson`;
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`${url} returned ${r.status}`);
-        const gj = await r.json(),
-          F = CFG.fields[level];
-        gj.features.forEach((f, i) => {
-          f.id = i;
+        let feats;
+        try {
+          feats = await fetchLevel(level, CFG.source);
+        } catch (e) {
+          if (CFG.source === "api" && CFG.staticFallback) {
+            console.warn(`API failed for ${level}, trying static file:`, e);
+            feats = await fetchLevel(level, "static");
+            S.dataSource = "static";
+          } else throw e;
+        }
+        const F = CFG.fields[level];
+        /* FIX: features without geometry crashed approxArea/bbox and broke the whole boot. */
+        feats = feats.filter((f) => f && f.geometry && f.geometry.coordinates);
+        feats.forEach((f, i) => {
+          f.id = i; /* numeric ids are required for feature-state */
           const p = f.properties || {};
           const code = pick(p, F.code);
           f.n = {
@@ -637,8 +639,8 @@
             bbox: bbox(f.geometry),
           };
         });
-        S.feats[level] = gj.features;
-        return gj;
+        S.feats[level] = feats;
+        return { type: "FeatureCollection", features: feats };
       }
       const find = (level, code) => S.feats[level].find((f) => f.n.code === code);
       const parentOf = (level, f) => (idx(level) > 0 ? find(LV[idx(level) - 1].id, f.n.parent) : null);
@@ -654,47 +656,88 @@
       const visible = (level) => S.feats[level].filter((f) => inScope(level, f));
 
       /* ---------- Map ---------- */
-      let map;
-      function initMap(data) {
-        map = new maplibregl.Map({
-          container: "map",
-          center: [38, 2.9],
-          zoom: 6,
-          attributionControl: { compact: true },
-          style: {
-            version: 8,
-            sources: {
-              osm: {
-                type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                tileSize: 256,
-                attribution: "© OpenStreetMap contributors",
-              },
-            },
-            layers: [
-              { id: "bg", type: "background", paint: { "background-color": "#e9eee9" } },
-              {
-                id: "osm",
-                type: "raster",
-                source: "osm",
-                paint: { "raster-opacity": 0.5, "raster-saturation": -0.7 },
-              },
-            ],
-          },
+      function buildStyle() {
+        const sources = {},
+          layers = [{ id: "bg", type: "background", paint: { "background-color": cssVar("--mapbg") || "#e9eee9" } }];
+        Object.entries(BASEMAPS).forEach(([id, b]) => {
+          sources["bm-" + id] = {
+            type: "raster",
+            tiles: b.tiles,
+            tileSize: 256,
+            maxzoom: b.maxzoom,
+            attribution: b.attribution,
+          };
+          /* Hidden layers fetch no tiles; applyBasemap() makes one visible. */
+          layers.push({
+            id: "bm-" + id,
+            type: "raster",
+            source: "bm-" + id,
+            layout: { visibility: "none" },
+            paint: b.paint,
+          });
         });
+        const style = { version: 8, sources, layers };
+        if (CFG.glyphs) style.glyphs = CFG.glyphs;
+        return style;
+      }
+      function resolveBasemap() {
+        if (S.basemap === "auto") return isDark() ? "carto-dark" : "carto-light";
+        return S.basemap;
+      }
+      function applyBasemap(forceId) {
+        if (!styleReady) return;
+        const want = forceId || resolveBasemap();
+        activeBasemap = want;
+        Object.keys(BASEMAPS).forEach((id) =>
+          map.setLayoutProperty("bm-" + id, "visibility", id === want ? "visible" : "none"),
+        );
+        S.tileErrors = 0;
+        showNote("");
+      }
+      /* Temporary step-down when the active basemap keeps failing. It does not change the saved choice. */
+      function fallbackBasemap() {
+        const failed = activeBasemap;
+        const next = failed && failed.startsWith("carto") ? "esri-topo" : failed === "esri-topo" ? "esri" : "none";
+        applyBasemap(next);
+        const name = BASEMAPS[failed] ? BASEMAPS[failed].label : String(failed);
+        showNote(
+          `${name} tiles failed to load (blocked or rate limited). Switched to ${next === "none" ? "no basemap" : BASEMAPS[next].label}.`,
+        );
+      }
+
+      function initMap() {
+        return new Promise((resolve, reject) => {
+        try {
+          map = new maplibregl.Map({
+            container: "map",
+            center: [38, 2.9],
+            zoom: 6,
+            attributionControl: { compact: true },
+            style: buildStyle(),
+          });
+        } catch (e) {
+          return reject(e); /* typically WebGL unavailable */
+        }
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-left");
+
+        /* Basemap tile failures (blocked, rate limited, offline) must not break the boundary layers. */
+        map.on("error", (e) => {
+          const sid = e && e.sourceId;
+          if (sid && sid.startsWith("bm-")) {
+            if (sid === "bm-" + activeBasemap && ++S.tileErrors === 5) fallbackBasemap();
+          } else if (e && e.error) console.warn("Map error:", e.error);
+        });
+
         map.on("load", () => {
+          styleReady = true;
+          applyBasemap();
           LV.forEach((l) => {
-            map.addSource(l.id, { type: "geojson", data: data[l.id] });
+            map.addSource(l.id, { type: "geojson", data: { type: "FeatureCollection", features: [] } }); /* filled in boot() */
             map.addLayer({
               id: l.id + "-fill",
               type: "fill",
               source: l.id,
-              paint: {
-                "fill-color": l.color,
-                "fill-opacity": 0,
-                "fill-opacity-transition": { duration: 350 },
-              },
+              paint: { "fill-color": l.color, "fill-opacity": 0, "fill-opacity-transition": { duration: 350 } },
             });
             map.addLayer({
               id: l.id + "-line",
@@ -709,33 +752,50 @@
               },
             });
           });
+          addWaterPointsLayer(); /* water may already have arrived; otherwise loadWaterPoints() adds it */
           const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
+          const waterHit = (pt) =>
+            map.getLayer("waterpoints") ? map.queryRenderedFeatures(pt, { layers: ["waterpoints"] })[0] : null;
           map.on("mousemove", (e) => {
+            const wp = waterHit(e.point);
+            if (wp) {
+              setHover(null);
+              map.getCanvas().style.cursor = "pointer";
+              const p = wp.properties || {};
+              popup
+                .setLngLat(wp.geometry.coordinates)
+                .setText(`${p.name || "Water point"} · ${p.status || "unverified"}`)
+                .addTo(map);
+              return;
+            }
             const lid = S.level,
               hit = map.queryRenderedFeatures(e.point, { layers: [lid + "-fill"] })[0];
             setHover(hit ? hit.id : null);
             map.getCanvas().style.cursor = hit ? "pointer" : "";
-            if (hit) popup.setLngLat(e.lngLat).setText(S.feats[lid][hit.id].n.name).addTo(map);
+            if (hit && S.feats[lid][hit.id]) popup.setLngLat(e.lngLat).setText(S.feats[lid][hit.id].n.name).addTo(map);
             else popup.remove();
           });
+          map.on("mouseout", () => popup.remove());
           map.on("click", (e) => {
+            if (waterHit(e.point)) return;
             const hit = map.queryRenderedFeatures(e.point, { layers: [S.level + "-fill"] })[0];
             if (hit) select(S.level, hit.id);
           });
-          restyle();
-          applyScope();
-          addWaterPointsLayer();
-          fitAll();
-          document.dispatchEvent(new Event("terra:map"));
+          mapReady = true;
+          resolve();
+        });
         });
       }
       function setHover(id) {
-        if (S.hover === id) return;
-        if (S.hover != null) map.setFeatureState({ source: S.level, id: S.hover }, { hover: false });
-        S.hover = id;
+        const cur = S.hover;
+        if (cur && cur.id === id && cur.level === S.level) return;
+        if (cur) map.setFeatureState({ source: cur.level, id: cur.id }, { hover: false });
+        S.hover = id != null ? { level: S.level, id } : null;
         if (id != null) map.setFeatureState({ source: S.level, id }, { hover: true });
       }
+      /* Base styling by level role; paintIndicator() then overlays indicator colours when one is selected. */
       function restyle() {
+        if (!mapReady) return;
         const st = ["boolean", ["feature-state", "sel"], false];
         LV.forEach((l) => {
           const role = l.id === S.level ? "active" : idx(l.id) === idx(S.level) - 1 ? "context" : "off";
@@ -746,45 +806,38 @@
               ? 0
               : [
                   "case",
-                  st,
-                  0.6,
-                  ["boolean", ["feature-state", "hover"], false],
-                  0.5,
-                  ["boolean", ["feature-state", "dim"], false],
-                  0.05,
+                  st, 0.6,
+                  ["boolean", ["feature-state", "hover"], false], 0.5,
+                  ["boolean", ["feature-state", "dim"], false], 0.05,
                   0.3,
                 ],
           );
-          map.setPaintProperty(
-            l.id + "-line",
-            "line-opacity",
-            role === "active" ? 0.95 : role === "context" ? 0.85 : 0,
-          );
+          map.setPaintProperty(l.id + "-line", "line-opacity", role === "active" ? 0.95 : role === "context" ? 0.85 : 0);
           map.setPaintProperty(
             l.id + "-line",
             "line-width",
             role === "active" ? ["case", st, 3.5, 1.4] : role === "context" ? 3 : 0.5,
           );
         });
+        paintIndicator();
       }
       function applyScope() {
+        if (!mapReady) return;
         LV.forEach((l) =>
-          S.feats[l.id].forEach((f) =>
-            map.setFeatureState({ source: l.id, id: f.id }, { dim: !inScope(l.id, f) }),
-          ),
+          S.feats[l.id].forEach((f) => map.setFeatureState({ source: l.id, id: f.id }, { dim: !inScope(l.id, f) })),
         );
       }
       function fitBox(b) {
+        if (!mapReady) return;
+        const narrow = window.innerWidth <= 820;
         map.fitBounds(
-          [
-            [b[0], b[1]],
-            [b[2], b[3]],
-          ],
-          { padding: { top: 60, bottom: 40, left: 40, right: 340 }, duration: 700, maxZoom: 11 },
+          [[b[0], b[1]], [b[2], b[3]]],
+          { padding: { top: 60, bottom: 40, left: 40, right: narrow ? 40 : 340 }, duration: 700, maxZoom: 11 },
         );
       }
       function fitAll() {
         const fs = visible(S.level).length ? visible(S.level) : S.feats[S.level];
+        if (!fs.length) return;
         fitBox(
           fs.reduce(
             (b, f) => [
@@ -800,6 +853,7 @@
 
       /* ---------- Actions ---------- */
       function setLevel(id, keepSel) {
+        setHover(null);
         S.level = id;
         if (!keepSel) clearSel();
         restyle();
@@ -807,18 +861,23 @@
         fitAll();
         history.replaceState(null, "", `#${id}${S.constFocus ? "," + S.constFocus : ""}`);
       }
-      function clearSel() {
-        if (S.sel) map.setFeatureState({ source: S.sel.level, id: S.sel.id }, { sel: false });
+      function dropSel() {
+        if (S.sel && mapReady) map.setFeatureState({ source: S.sel.level, id: S.sel.id }, { sel: false });
         S.sel = null;
         $("card").hidden = true;
       }
+      function clearSel() {
+        dropSel();
+        trend();
+      }
       function select(level, id) {
-        clearSel();
+        dropSel();
         S.sel = { level, id };
         map.setFeatureState({ source: level, id }, { sel: true });
         fitBox(S.feats[level][id].n.bbox);
         renderCard();
         renderList();
+        trend();
       }
       function setConstFocus(code) {
         S.constFocus = code;
@@ -835,23 +894,21 @@
       /* ---------- UI ---------- */
       function render() {
         const lv = LV[idx(S.level)];
-        document.documentElement.style.setProperty("--lc", lv.color);
+        root.style.setProperty("--lc", lv.color);
         $("seg")
           .querySelectorAll("button")
           .forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === S.level));
         const cs = [["", "All constituencies"], ...S.feats.constituencies.map((f) => [f.n.code, f.n.name])];
-        $("fConst").innerHTML = cs
-          .map(([v, t]) => `<option value="${v}">${t.replace(/</g, "&lt;")}</option>`)
-          .join("");
+        $("fConst").innerHTML = cs.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("");
         $("fConst").value = S.constFocus;
         const ws = S.feats.wards.filter((f) => !S.constFocus || f.n.parent === S.constFocus);
         $("fWard").innerHTML =
-          `<option value="">All wards</option>` +
-          ws.map((f) => `<option value="${f.id}">${f.n.name.replace(/</g, "&lt;")}</option>`).join("");
+          `<option value="">All wards</option>` + ws.map((f) => `<option value="${f.id}">${esc(f.n.name)}</option>`).join("");
         $("listTitle").textContent = `${lv.label} units (${visible(S.level).length})`;
         renderList();
         renderCrumbs();
         if (S.sel) renderCard();
+        if (mapReady) refresh();
       }
       function renderList() {
         const q = $("q").value.trim().toLowerCase(),
@@ -863,6 +920,7 @@
           .forEach((f) => {
             const li = document.createElement("li"),
               b = document.createElement("button");
+            b.type = "button";
             b.innerHTML = "<span></span><span></span>";
             b.children[0].textContent = f.n.name;
             b.children[1].textContent = `${Math.round(f.n.area).toLocaleString()} km²`;
@@ -889,17 +947,18 @@
         const row = c.querySelector(".row");
         if (kids.length) {
           const b = document.createElement("button");
+          b.type = "button";
           b.className = "primary";
           b.textContent = `Show ${LV[i + 1].plural}`;
           b.onclick = () => {
             if (level === "constituencies") S.constFocus = f.n.code;
             applyScope();
             setLevel(LV[i + 1].id);
-            render();
           };
           row.appendChild(b);
         }
         const x = document.createElement("button");
+        x.type = "button";
         x.textContent = "Clear";
         x.onclick = () => {
           clearSel();
@@ -912,6 +971,7 @@
         nav.innerHTML = "";
         const add = (t, fn) => {
           const b = document.createElement("button");
+          b.type = "button";
           b.textContent = t;
           b.onclick = fn;
           nav.appendChild(b);
@@ -921,10 +981,11 @@
           S.constFocus = "";
           applyScope();
           setLevel("counties");
-          render();
         });
-        if (S.constFocus)
-          add(find("constituencies", S.constFocus).n.name, () => setLevel("constituencies", false));
+        if (S.constFocus) {
+          const cf = find("constituencies", S.constFocus);
+          if (cf) add(cf.n.name, () => setLevel("constituencies", false));
+        }
       }
       function runChecks() {
         const out = [];
@@ -938,197 +999,65 @@
           kc = new Set(S.feats.constituencies.map((f) => f.n.code));
         const oc = S.feats.constituencies.filter((f) => !codes.has(f.n.parent)).length,
           ow = S.feats.wards.filter((f) => !kc.has(f.n.parent)).length;
-        out.push([
-          oc === 0,
-          `Constituencies linked to a county: ${S.feats.constituencies.length - oc} of ${S.feats.constituencies.length}`,
-        ]);
-        out.push([
-          ow === 0,
-          `Wards linked to a constituency: ${S.feats.wards.length - ow} of ${S.feats.wards.length}`,
-        ]);
+        out.push([oc === 0, `Constituencies linked to a county: ${S.feats.constituencies.length - oc} of ${S.feats.constituencies.length}`]);
+        out.push([ow === 0, `Wards linked to a constituency: ${S.feats.wards.length - ow} of ${S.feats.wards.length}`]);
         const dup = LV.some((l) => new Set(S.feats[l.id].map((f) => f.n.code)).size !== S.feats[l.id].length);
         out.push([!dup, dup ? "Duplicate or missing codes found" : "Codes are unique"]);
-        $("checks").innerHTML = out.map(([ok, t]) => `<li class="${ok ? "" : "bad"}">${t}</li>`).join("");
+        out.push([S.dataSource === CFG.source, `Boundary source: ${S.dataSource}`]);
+        $("checks").innerHTML = out.map(([ok, t]) => `<li class="${ok ? "" : "bad"}">${esc(t)}</li>`).join("");
       }
 
-      /* ---------- Boot ---------- */
-      async function boot() {
-        $("seg").innerHTML = LV.map(
-          (l) =>
-            `<button data-id="${l.id}" style="--lc:${l.color}" aria-pressed="false">${l.label}<small></small></button>`,
-        ).join("");
-        try {
-          const data = {};
-          for (const l of LV) data[l.id] = await load(l.id);
-          LV.forEach(
-            (l) => ($("seg").querySelector(`[data-id=${l.id}] small`).textContent = S.feats[l.id].length),
-          );
-          await loadWaterPoints();
-          const h = location.hash.slice(1).split(",");
-          if (LV.some((l) => l.id === h[0])) S.level = h[0];
-          if (h[1] && find("constituencies", h[1])) S.constFocus = h[1];
-          initMap(data);
-          runChecks();
-          render();
-        } catch (e) {
-          const el = $("err");
-          el.hidden = false;
-          el.textContent = `Could not load boundaries: ${e.message}. Check CFG.source and that the GeoJSON files or API endpoints exist.`;
-        }
-        $("seg").onclick = (e) => {
-          const b = e.target.closest("button");
-          if (b) setLevel(b.dataset.id);
-        };
-        $("fConst").onchange = (e) => setConstFocus(e.target.value);
-        $("fWard").onchange = (e) => {
-          if (e.target.value === "") return;
-          S.level = "wards";
-          restyle();
-          render();
-          select("wards", +e.target.value);
-          $("fWard").value = e.target.value;
-        };
-        $("q").oninput = renderList;
-        $("bm").onchange = (e) => map.setPaintProperty("osm", "raster-opacity", e.target.checked ? 0.5 : 0);
-      }
-      boot();
-    </script>
-    <script>
-      /* Terra Range indicator layer. Loads after the main script in index.html and hooks into it.
-   Needs CFG.source = 'api' and the /indicators/ endpoint. Class boundaries below are ILLUSTRATIVE:
-   confirm against the current NDMA bulletin methodology before operational use. */
+      /* =====================================================================
+         Indicator layer
+         Needs the /indicators/ endpoint. Class boundaries below are ILLUSTRATIVE:
+         confirm against the current NDMA bulletin methodology before operational use.
+         ===================================================================== */
       const IND = {
         vci3: {
-          label: "VCI, 3-month",
-          group: "Vegetation",
-          dec: 0,
-          status: "Derived",
-          flag: 50,
-          lines: [50, 35, 20],
+          label: "VCI, 3-month", group: "Vegetation", dec: 0, status: "Derived", flag: 50, lines: [50, 35, 20],
           note: "Vegetation Condition Index vs 2001-2025 baseline. Low = poor condition.",
-          stops: [
-            [0, "#a63603"],
-            [20, "#e6550d"],
-            [35, "#fdae6b"],
-            [50, "#ffffbf"],
-            [75, "#a6d96a"],
-            [100, "#1a9641"],
-          ],
-          classes: [
-            [20, "Emergency"],
-            [35, "Alarm"],
-            [50, "Alert"],
-            [1e9, "Normal"],
-          ],
+          stops: [[0, "#a63603"], [20, "#e6550d"], [35, "#fdae6b"], [50, "#ffffbf"], [75, "#a6d96a"], [100, "#1a9641"]],
+          classes: [[20, "Emergency"], [35, "Alarm"], [50, "Alert"], [1e9, "Normal"]],
         },
         vci: {
-          label: "VCI, single composite",
-          group: "Vegetation",
-          dec: 0,
-          status: "Derived",
-          flag: 50,
-          lines: [50, 35, 20],
+          label: "VCI, single composite", group: "Vegetation", dec: 0, status: "Derived", flag: 50, lines: [50, 35, 20],
           note: "Noisier than the 3-month VCI; use for timing, not classification.",
-          stops: [
-            [0, "#a63603"],
-            [20, "#e6550d"],
-            [35, "#fdae6b"],
-            [50, "#ffffbf"],
-            [75, "#a6d96a"],
-            [100, "#1a9641"],
-          ],
-          classes: [
-            [20, "Emergency"],
-            [35, "Alarm"],
-            [50, "Alert"],
-            [1e9, "Normal"],
-          ],
+          stops: [[0, "#a63603"], [20, "#e6550d"], [35, "#fdae6b"], [50, "#ffffbf"], [75, "#a6d96a"], [100, "#1a9641"]],
+          classes: [[20, "Emergency"], [35, "Alarm"], [50, "Alert"], [1e9, "Normal"]],
         },
         ndvi: {
-          label: "NDVI",
-          group: "Vegetation",
-          dec: 2,
-          status: "Observed",
-          lines: [],
+          label: "NDVI", group: "Vegetation", dec: 2, status: "Observed", lines: [],
           note: "MODIS 250 m ward mean. Shown only where at least half the ward has valid pixels.",
-          stops: [
-            [0.1, "#f6e8c3"],
-            [0.25, "#d9ef8b"],
-            [0.4, "#66bd63"],
-            [0.6, "#1a9850"],
-          ],
+          stops: [[0.1, "#f6e8c3"], [0.25, "#d9ef8b"], [0.4, "#66bd63"], [0.6, "#1a9850"]],
         },
         ndvi_anom: {
-          label: "NDVI anomaly",
-          group: "Vegetation",
-          dec: 2,
-          status: "Derived",
-          lines: [0],
+          label: "NDVI anomaly", group: "Vegetation", dec: 2, status: "Derived", lines: [0],
           note: "Departure from the baseline mean for the same composite.",
-          stops: [
-            [-0.15, "#8c510a"],
-            [0, "#f5f5f5"],
-            [0.15, "#01665e"],
-          ],
+          stops: [[-0.15, "#8c510a"], [0, "#f5f5f5"], [0.15, "#01665e"]],
         },
         rain_spi3: {
-          label: "SPI, 3-month",
-          group: "Rainfall",
-          dec: 2,
-          status: "Derived",
-          flag: -1,
-          lines: [-1, -1.5, -2],
+          label: "SPI, 3-month", group: "Rainfall", dec: 2, status: "Derived", flag: -1, lines: [-1, -1.5, -2],
           note: "Standardised Precipitation Index (CHIRPS, 1991-2020 baseline). Negative = drier.",
-          stops: [
-            [-2.5, "#8c510a"],
-            [-1.5, "#d8b365"],
-            [0, "#f5f5f5"],
-            [1.5, "#5ab4ac"],
-            [2.5, "#01665e"],
-          ],
-          classes: [
-            [-2, "Extremely dry"],
-            [-1.5, "Severely dry"],
-            [-1, "Moderately dry"],
-            [1e9, "Near normal or wetter"],
-          ],
+          stops: [[-2.5, "#8c510a"], [-1.5, "#d8b365"], [0, "#f5f5f5"], [1.5, "#5ab4ac"], [2.5, "#01665e"]],
+          classes: [[-2, "Extremely dry"], [-1.5, "Severely dry"], [-1, "Moderately dry"], [1e9, "Near normal or wetter"]],
         },
         rain_pon3: {
-          label: "Rainfall, % of normal (3-month)",
-          group: "Rainfall",
-          dec: 0,
-          status: "Derived",
-          lines: [100, 50],
+          label: "Rainfall, % of normal (3-month)", group: "Rainfall", dec: 0, status: "Derived", lines: [100, 50],
           note: "3-month total as a percentage of the 1991-2020 mean for the same months.",
-          stops: [
-            [0, "#8c510a"],
-            [50, "#d8b365"],
-            [100, "#f5f5f5"],
-            [150, "#80cdc1"],
-            [200, "#01665e"],
-          ],
+          stops: [[0, "#8c510a"], [50, "#d8b365"], [100, "#f5f5f5"], [150, "#80cdc1"], [200, "#01665e"]],
         },
         rain_mm: {
-          label: "Monthly rainfall (mm)",
-          group: "Rainfall",
-          dec: 0,
-          status: "Observed",
-          lines: [],
+          label: "Monthly rainfall (mm)", group: "Rainfall", dec: 0, status: "Observed", lines: [],
           note: "CHIRPS ward mean.",
-          stops: [
-            [0, "#f7fbff"],
-            [50, "#9ecae1"],
-            [150, "#3182bd"],
-            [300, "#08306b"],
-          ],
+          stops: [[0, "#f7fbff"], [50, "#9ecae1"], [150, "#3182bd"], [300, "#08306b"]],
         },
       };
       const X = { ind: "vci3", p: 0, data: {}, timer: null };
-      let ready = false,
-        trendC,
-        rankC,
+      let trendC = null,
+        rankC = null,
         rankRows = [],
         hmL = null;
+      const hasChart = () => typeof Chart !== "undefined";
       const cur = () => (X.ind && X.data[X.ind] && X.data[X.ind].periods.length ? X.data[X.ind] : null);
       const lastWithData = () => {
         const D = cur();
@@ -1137,12 +1066,10 @@
         return p;
       };
       const hexRGB = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-      const esc = (s) =>
-        String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-      const NODATA = "#d9ddd8";
+      const NODATA = "#8f9894"; /* mid grey: readable on both light and dark surfaces */
       const showDock = (on) => {
         document.querySelector("main").classList.toggle("no-dock", !on);
-        if (ready) map.resize();
+        if (mapReady) map.resize();
       };
 
       function colorAt(id, v) {
@@ -1165,20 +1092,20 @@
       const fmt = (id, v) => (v == null ? "n/a" : v.toFixed(IND[id].dec));
       const klass = (id, v) => {
         const c = IND[id].classes;
-        return c && v != null ? c.find((x) => v < x[0])[1] : "";
+        const hit = c && v != null ? c.find((x) => v < x[0]) : null;
+        return hit ? hit[1] : "";
       };
 
-      /* ---------- data ---------- */
+      /* ---------- indicator data ---------- */
       async function loadInd(id) {
         if (X.data[id]) return X.data[id];
-        const r = await fetch(`${CFG.api}indicators/?indicator=${id}&level=wards&start=2000-01-01`);
-        if (!r.ok) throw new Error(`indicators API returned ${r.status}`);
-        const j = await r.json(),
-          periods = [...new Set(j.rows.map((r) => r.period_start))].sort();
+        const j = await getJSON(`${CFG.api}indicators/?indicator=${encodeURIComponent(id)}&level=wards&start=2000-01-01`);
+        const rows = j.rows || j.results || [];
+        const periods = [...new Set(rows.map((r) => r.period_start))].sort();
         const pi = new Map(periods.map((d, i) => [d, i])),
           wi = new Map(S.feats.wards.map((f, i) => [f.n.code, i]));
         const mat = S.feats.wards.map(() => Array(periods.length).fill(null));
-        j.rows.forEach((r) => {
+        rows.forEach((r) => {
           const i = wi.get(r.code);
           if (i != null && r.value != null) mat[i][pi.get(r.period_start)] = r.value;
         });
@@ -1205,7 +1132,7 @@
           }
           acc.set(k, a);
         });
-        acc.forEach((a, k) => m.set(k, { v: a.w ? a.s / a.w : null, cov: a.w / a.t }));
+        acc.forEach((a, k) => m.set(k, { v: a.w ? a.s / a.w : null, cov: a.t ? a.w / a.t : 0 }));
         return m;
       }
       const seriesFor = (level, code) =>
@@ -1214,26 +1141,19 @@
           return o ? o.v : null;
         });
 
-      /* ---------- map ---------- */
-      function paint() {
-        if (!ready) return;
+      /* ---------- indicator map paint ---------- */
+      function paintIndicator() {
+        if (!mapReady) return;
         const on = X.ind && cur();
         LV.forEach((l) =>
-          map.setPaintProperty(
-            l.id + "-fill",
-            "fill-color",
-            on && l.id === S.level ? mapExpr(X.ind) : l.color,
-          ),
+          map.setPaintProperty(l.id + "-fill", "fill-color", on && l.id === S.level ? mapExpr(X.ind) : l.color),
         );
-        if (!on) return _restyle();
+        if (!on) return;
         map.setPaintProperty(S.level + "-fill", "fill-opacity", [
           "case",
-          ["boolean", ["feature-state", "sel"], false],
-          0.9,
-          ["boolean", ["feature-state", "hover"], false],
-          0.85,
-          ["boolean", ["feature-state", "dim"], false],
-          0.15,
+          ["boolean", ["feature-state", "sel"], false], 0.9,
+          ["boolean", ["feature-state", "hover"], false], 0.85,
+          ["boolean", ["feature-state", "dim"], false], 0.15,
           0.75,
         ]);
         const v = valsAt(S.level, X.p);
@@ -1243,55 +1163,54 @@
         });
       }
 
-      /* ---------- panels ---------- */
+      /* ---------- indicator panels ---------- */
       function buildUI() {
         const groups = {};
         Object.entries(IND).forEach(([k, v]) =>
           (groups[v.group] = groups[v.group] || []).push(`<option value="${k}">${v.label}</option>`),
         );
-        document.getElementById("indSec").innerHTML = `<h2>Indicator</h2>
-    <select id="indSel"><option value="">Boundaries only</option>${Object.entries(groups)
+        $("indSec").innerHTML = `<h2>Indicator</h2>
+    <select id="indSel" aria-label="Indicator"><option value="">Boundaries only</option>${Object.entries(groups)
       .map(([g, o]) => `<optgroup label="${g}">${o.join("")}</optgroup>`)
       .join("")}</select>
     <p id="indNote" style="font-size:13px;color:var(--muted);margin:0 0 8px"></p>
     <div id="indCtl" hidden><input type="range" id="indT" min="0" max="0" value="0" aria-label="Period">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><b id="indDate"></b>
-      <span><button id="play" class="mini">Play</button> <button id="latest" class="mini">Latest</button></span></div>
+      <span><button id="play" class="mini" type="button">Play</button> <button id="latest" class="mini" type="button">Latest</button></span></div>
       <div class="legend" id="legend"></div><div class="lg"><span id="lgMin"></span><span id="lgMax"></span></div>
       <p id="lgTag" style="font-size:12px;color:var(--muted);margin:6px 0 0"></p></div>`;
-        document.getElementById("kpis").innerHTML = "";
-        document.getElementById("dock").innerHTML = `
+        $("kpis").innerHTML = "";
+        $("dock").innerHTML = `
     <div><div class="dh"><h2 id="trH">Trend</h2><select id="trR" aria-label="Range"><option value="1">1 year</option><option value="3" selected>3 years</option><option value="99">All</option></select></div><div class="cv"><canvas id="tr"></canvas></div></div>
     <div><div class="dh"><h2 id="rkH">Ranking</h2></div><div class="cv"><canvas id="rk"></canvas></div></div>
     <div><div class="dh"><h2>Heatmap: wards over time</h2><small id="hmI" style="color:var(--muted)"></small></div><div class="cv"><canvas id="hm"></canvas></div></div>`;
-        Chart.defaults.font.family = '"Atkinson Hyperlegible",system-ui,sans-serif';
-        const $$ = (id) => document.getElementById(id);
-        $$("indSel").onchange = (e) => setInd(e.target.value);
-        $$("indT").oninput = (e) => {
+        if (hasChart()) Chart.defaults.font.family = '"Atkinson Hyperlegible",system-ui,sans-serif';
+        $("indSel").onchange = (e) => setInd(e.target.value);
+        $("indT").oninput = (e) => {
           X.p = +e.target.value;
           refresh();
         };
-        $$("latest").onclick = () => {
+        $("latest").onclick = () => {
           haltPlay();
           X.p = lastWithData();
           refresh();
         };
-        $$("play").onclick = () => (X.timer ? haltPlay() : play());
-        $$("trR").onchange = trend;
-        $$("hm").onmousemove = (e) => hmHit(e, false);
-        $$("hm").onclick = (e) => hmHit(e, true);
+        $("play").onclick = () => (X.timer ? haltPlay() : play());
+        $("trR").onchange = trend;
+        $("hm").onmousemove = (e) => hmHit(e, false);
+        $("hm").onclick = (e) => hmHit(e, true);
       }
       const haltPlay = () => {
         clearInterval(X.timer);
         X.timer = null;
-        const b = document.getElementById("play");
+        const b = $("play");
         if (b) b.textContent = "Play";
       };
       function play() {
         const D = cur();
         if (!D) return;
         if (X.p >= D.periods.length - 1) X.p = Math.max(0, D.periods.length - 36);
-        document.getElementById("play").textContent = "Pause";
+        $("play").textContent = "Pause";
         X.timer = setInterval(() => {
           if (X.p >= D.periods.length - 1) return haltPlay();
           X.p++;
@@ -1301,12 +1220,12 @@
       async function setInd(id) {
         haltPlay();
         X.ind = id;
-        const note = document.getElementById("indNote"),
-          ctl = document.getElementById("indCtl");
+        const note = $("indNote"),
+          ctl = $("indCtl");
         if (!id) {
           note.textContent = "";
           ctl.hidden = true;
-          document.getElementById("kpis").innerHTML = "";
+          $("kpis").innerHTML = "";
           showDock(false);
           refresh();
           return;
@@ -1315,42 +1234,55 @@
           await loadInd(id);
         } catch (e) {
           note.textContent = `Could not load: ${e.message}`;
+          ctl.hidden = true;
+          X.ind = "";
+          $("indSel").value = "";
+          $("kpis").innerHTML = "";
+          showDock(false);
+          refresh();
           return;
         }
         if (!cur()) {
           note.textContent = "No data yet. Run: python manage.py update_indicators";
           ctl.hidden = true;
+          showDock(false);
+          refresh();
           return;
         }
-        showDock(true);
+        if (!hasChart()) {
+          note.textContent = "Chart.js failed to load, so the charts are hidden. Map colouring still works.";
+        } else {
+          showDock(true);
+          note.textContent = IND[id].note;
+        }
         const I = IND[id],
           s = I.stops,
           a = s[0][0],
           b = s[s.length - 1][0];
-        note.textContent = I.note;
         ctl.hidden = false;
         X.p = lastWithData();
-        document.getElementById("indT").max = cur().periods.length - 1;
-        document.getElementById("legend").style.background =
+        $("indT").max = cur().periods.length - 1;
+        $("legend").style.background =
           "linear-gradient(90deg," + s.map(([v, c]) => `${c} ${((v - a) / (b - a)) * 100}%`).join(",") + ")";
-        document.getElementById("lgMin").textContent = a;
-        document.getElementById("lgMax").textContent = b;
-        document.getElementById("lgTag").textContent =
-          `Status: ${I.status}. Grey = no valid data. Class boundaries are illustrative.`;
+        $("lgMin").textContent = a;
+        $("lgMax").textContent = b;
+        $("lgTag").textContent = `Status: ${I.status}. Grey = no valid data. Class boundaries are illustrative.`;
         refresh();
       }
 
       function refresh() {
-        if (!ready) return;
-        paint();
+        if (!mapReady) return;
+        paintIndicator();
         const D = cur();
         if (!D) return;
-        document.getElementById("indT").value = X.p;
-        document.getElementById("indDate").textContent = D.periods[X.p];
+        $("indT").value = X.p;
+        $("indDate").textContent = D.periods[X.p];
         kpis();
-        rank();
-        heat();
-        trend();
+        if (hasChart()) {
+          rank();
+          heat();
+          trend();
+        }
       }
       function kpis() {
         const D = cur(),
@@ -1358,38 +1290,22 @@
           p = X.p,
           w = valsAt("wards", p);
         const c = valsAt("counties", p).values().next().value || {},
-          pc =
-            p > 0
-              ? valsAt("counties", p - 1)
-                  .values()
-                  .next().value || {}
-              : {};
+          pc = p > 0 ? valsAt("counties", p - 1).values().next().value || {} : {};
         const arr = S.feats.wards
-          .map((f) => ({ f, v: w.get(f.n.code).v }))
+          .map((f) => ({ f, v: (w.get(f.n.code) || {}).v }))
           .filter((o) => o.v != null)
           .sort((a, b) => a.v - b.v);
         const delta = c.v != null && pc.v != null ? c.v - pc.v : null,
           n = S.feats.wards.length;
-        const card = (t, big, sub) =>
-          `<div class="kpi"><small>${t}</small><b>${big}</b><small>${sub}</small></div>`;
-        document.getElementById("kpis").innerHTML =
-          card(
-            `County mean · ${I.label}`,
-            fmt(X.ind, c.v),
-            `${esc(klass(X.ind, c.v) || I.status)} · period ${D.periods[p]}`,
-          ) +
+        const card = (t, big, sub) => `<div class="kpi"><small>${esc(t)}</small><b>${esc(big)}</b><small>${sub}</small></div>`;
+        $("kpis").innerHTML =
+          card(`County mean · ${I.label}`, fmt(X.ind, c.v), `${esc(klass(X.ind, c.v) || I.status)} · period ${esc(D.periods[p])}`) +
           card(
             I.flag != null ? `Wards below ${I.flag}` : "Wards with valid data",
-            I.flag != null
-              ? `${arr.filter((o) => o.v < I.flag).length} of ${arr.length}`
-              : `${arr.length} of ${n}`,
-            `${arr.length < n ? n - arr.length + " ward(s) without valid data" : "All wards reporting"}`,
+            I.flag != null ? `${arr.filter((o) => o.v < I.flag).length} of ${arr.length}` : `${arr.length} of ${n}`,
+            arr.length < n ? `${n - arr.length} ward(s) without valid data` : "All wards reporting",
           ) +
-          card(
-            "Lowest ward",
-            arr.length ? fmt(X.ind, arr[0].v) : "n/a",
-            arr.length ? esc(arr[0].f.n.name) : "no data",
-          ) +
+          card("Lowest ward", arr.length ? fmt(X.ind, arr[0].v) : "n/a", arr.length ? esc(arr[0].f.n.name) : "no data") +
           card(
             "Change vs previous period",
             delta == null ? "n/a" : (delta > 0 ? "+" : "") + delta.toFixed(I.dec + (I.dec ? 0 : 1)),
@@ -1398,21 +1314,18 @@
       }
       function rank() {
         const I = IND[X.ind],
-          p = X.p,
-          v = valsAt(S.level, p);
+          v = valsAt(S.level, X.p);
         rankRows = visible(S.level)
           .map((f) => ({ f, v: (v.get(f.n.code) || {}).v }))
           .filter((o) => o.v != null)
           .sort((a, b) => a.v - b.v);
-        document.getElementById("rkH").textContent = `${LV[idx(S.level)].label} ranking · ${I.label}`;
+        $("rkH").textContent = `${LV[idx(S.level)].label} ranking · ${I.label}`;
         const data = {
           labels: rankRows.map((o) => o.f.n.name),
-          datasets: [
-            { data: rankRows.map((o) => o.v), backgroundColor: rankRows.map((o) => colorAt(X.ind, o.v)) },
-          ],
+          datasets: [{ data: rankRows.map((o) => o.v), backgroundColor: rankRows.map((o) => colorAt(X.ind, o.v)) }],
         };
         if (!rankC)
-          rankC = new Chart(document.getElementById("rk"), {
+          rankC = new Chart($("rk"), {
             type: "bar",
             data,
             options: {
@@ -1435,32 +1348,24 @@
         }
       }
       function trend() {
-        if (!ready || !cur()) return;
+        if (!mapReady || !hasChart() || !cur()) return;
         const D = cur(),
           I = IND[X.ind],
           t = S.sel
             ? { level: S.sel.level, f: S.feats[S.sel.level][S.sel.id] }
             : { level: "counties", f: S.feats.counties[0] };
         const ser = seriesFor(t.level, t.f.n.code),
-          yrs = +document.getElementById("trR").value;
-        const start =
-          yrs >= 99
-            ? 0
-            : Math.max(
-                0,
-                D.periods.findIndex(
-                  (d) =>
-                    d >=
-                    new Date(
-                      new Date(D.periods[X.p]).setFullYear(new Date(D.periods[X.p]).getFullYear() - yrs),
-                    )
-                      .toISOString()
-                      .slice(0, 10),
-                ),
-              );
+          yrs = +$("trR").value;
+        let start = 0;
+        if (yrs < 99) {
+          const d = new Date(D.periods[X.p]);
+          d.setFullYear(d.getFullYear() - yrs);
+          const cutoff = d.toISOString().slice(0, 10);
+          start = Math.max(0, D.periods.findIndex((x) => x >= cutoff));
+        }
         const labels = D.periods.slice(start, X.p + 1),
           vals = ser.slice(start, X.p + 1);
-        document.getElementById("trH").textContent = `${t.f.n.name} · ${I.label}`;
+        $("trH").textContent = `${t.f.n.name} · ${I.label}`;
         const ds = [
           {
             label: I.label,
@@ -1482,7 +1387,7 @@
         ];
         const data = { labels, datasets: ds };
         if (!trendC)
-          trendC = new Chart(document.getElementById("tr"), {
+          trendC = new Chart($("tr"), {
             type: "line",
             data,
             options: {
@@ -1502,12 +1407,12 @@
       }
       function heat() {
         const D = cur(),
-          cv = document.getElementById("hm"),
+          cv = $("hm"),
           box = cv.parentNode,
-          dpr = devicePixelRatio || 1,
+          dpr = window.devicePixelRatio || 1,
           W = box.clientWidth,
           H = box.clientHeight;
-        if (!W || !H) return;
+        if (!D || !W || !H || !S.feats.wards.length) return;
         cv.width = W * dpr;
         cv.height = H * dpr;
         cv.style.width = W + "px";
@@ -1515,6 +1420,8 @@
         const g = cv.getContext("2d");
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.clearRect(0, 0, W, H);
+        const ink = cssVar("--ink"),
+          muted = cssVar("--muted");
         const rows = S.feats.wards
           .map((f, i) => i)
           .sort((a, b) =>
@@ -1530,27 +1437,27 @@
         g.font = '9px "Atkinson Hyperlegible",sans-serif';
         g.textBaseline = "middle";
         rows.forEach((wi, r) => {
-          g.fillStyle = "#18292b";
+          g.fillStyle = ink;
           g.fillText(S.feats.wards[wi].n.name.slice(0, 16), 0, r * ch + ch / 2);
           for (let c = 0; c < n; c++) {
             g.fillStyle = colorAt(X.ind, D.mat[wi][p0 + c]);
             g.fillRect(x0 + c * cw, r * ch, cw - 0.5, ch - 0.5);
           }
         });
-        g.strokeStyle = "#18292b";
+        g.strokeStyle = ink;
         g.lineWidth = 1.5;
         g.strokeRect(x0 + (n - 1) * cw, 0, cw, rows.length * ch);
-        g.fillStyle = "#5c6b6a";
+        g.fillStyle = muted;
         g.textBaseline = "top";
         g.fillText(D.periods[p0], x0, H - 12);
         g.textAlign = "right";
         g.fillText(D.periods[X.p], W, H - 12);
         g.textAlign = "left";
         hmL = { x0, cw, ch, rows, n, p0 };
-        document.getElementById("hmI").textContent = `last ${n} periods`;
+        $("hmI").textContent = `last ${n} periods`;
       }
       function hmHit(e, click) {
-        if (!hmL) return;
+        if (!hmL || !cur()) return;
         const b = e.target.getBoundingClientRect(),
           x = e.clientX - b.left,
           y = e.clientY - b.top,
@@ -1568,41 +1475,117 @@
         e.target.title =
           c >= 0 && c < hmL.n ? `${f.n.name} · ${cur().periods[hmL.p0 + c]} · ${fmt(X.ind, v)}` : f.n.name;
       }
+      window.addEventListener("resize", () => mapReady && cur() && hasChart() && heat());
 
-      /* ---------- hooks into the main script ---------- */
-      const _render = render,
-        _restyle = restyle,
-        _select = select,
-        _clear = clearSel;
-      render = function () {
-        _render();
-        if (ready) refresh();
-      };
-      restyle = function () {
-        _restyle();
-        paint();
-      };
-      select = function (l, i) {
-        _select(l, i);
-        trend();
-      };
-      clearSel = function () {
-        _clear();
-        trend();
-      };
-      window.addEventListener("resize", () => ready && cur() && heat());
-      buildUI();
-      document.addEventListener("terra:map", async () => {
-        ready = true;
-        if (CFG.source !== "api") {
-          document.getElementById("indNote").textContent =
-            'Indicators need CFG.source = "api" and the Django endpoints.';
+      /* ---------- theme ---------- */
+      function applyTheme(t, persist) {
+        root.dataset.theme = t;
+        if (persist) safeSet("theme", t);
+        if (hasChart()) {
+          Chart.defaults.color = cssVar("--muted");
+          Chart.defaults.borderColor = cssVar("--line");
+        }
+        if (mapReady) {
+          map.setPaintProperty("bg", "background-color", cssVar("--mapbg"));
+          applyBasemap(); /* 'auto' basemap follows the theme */
+          [trendC, rankC].forEach((c) => c && c.update());
+          if (cur() && hasChart()) heat();
+        }
+      }
+      $("themeToggle").addEventListener("click", () => applyTheme(isDark() ? "light" : "dark", true));
+      /* follow the system setting until the user picks a theme explicitly */
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+        if (!safeGet("theme")) applyTheme(e.matches ? "dark" : "light", false);
+      });
+
+      /* ---------- Boot ---------- */
+      async function onMapReady() {
+        applyTheme(root.dataset.theme, false);
+        if (S.dataSource !== "api") {
+          $("indNote").textContent = "Indicators need the Django API; boundaries are loaded from static files.";
           showDock(false);
           return;
         }
-        document.getElementById("indSel").value = X.ind;
+        $("indSel").value = X.ind;
         await setInd(X.ind);
-      });
+      }
+
+      async function boot() {
+        if (typeof maplibregl === "undefined") {
+          showError("MapLibre GL failed to load from the CDN. Check the network, or self-host maplibre-gl 4.7.1.");
+          return;
+        }
+        $("seg").innerHTML = LV.map(
+          (l) => `<button type="button" data-id="${l.id}" style="--lc:${l.color}" aria-pressed="false">${l.label}<small></small></button>`,
+        ).join("");
+
+        /* basemap selector */
+        const saved = safeGet("basemap");
+        if (saved && (saved === "auto" || saved === "none" || BASEMAPS[saved])) S.basemap = saved;
+        $("bmSel").innerHTML =
+          `<option value="auto">Auto (follows theme)</option>` +
+          Object.entries(BASEMAPS).map(([id, b]) => `<option value="${id}">${esc(b.label)}</option>`).join("") +
+          `<option value="none">None</option>`;
+        $("bmSel").value = S.basemap;
+        $("bmSel").onchange = (e) => {
+          S.basemap = e.target.value;
+          safeSet("basemap", S.basemap);
+          applyBasemap();
+        };
+
+        $("seg").onclick = (e) => {
+          const b = e.target.closest("button");
+          if (b && dataReady) setLevel(b.dataset.id);
+        };
+        $("fConst").onchange = (e) => dataReady && setConstFocus(e.target.value);
+        $("fWard").onchange = (e) => {
+          if (e.target.value === "" || !dataReady) return;
+          const id = +e.target.value;
+          S.level = "wards";
+          restyle();
+          render();
+          select("wards", id);
+          $("fWard").value = String(id);
+        };
+        $("q").oninput = renderList;
+
+        buildUI();
+        /* FIX: the map now starts first, so the basemap shows even when the boundary data fails to load. */
+        const mapP = initMap();
+        let data = null;
+        try {
+          const loaded = await Promise.all(LV.map((l) => load(l.id)));
+          data = {};
+          LV.forEach((l, i) => (data[l.id] = loaded[i]));
+          LV.forEach((l) => ($("seg").querySelector(`[data-id=${l.id}] small`).textContent = S.feats[l.id].length));
+          const h = location.hash.slice(1).split(",");
+          if (LV.some((l) => l.id === h[0])) S.level = h[0];
+          if (h[1] && find("constituencies", h[1])) S.constFocus = h[1];
+        } catch (e) {
+          console.error(e);
+          showError(`Could not load boundaries: ${e.message}. The basemap still works. Check CFG.source and that the API endpoints or GeoJSON files exist.`);
+        }
+        try {
+          await mapP;
+        } catch (e) {
+          console.error(e);
+          showError(`The map could not start: ${e.message}. WebGL may be unavailable in this browser.`);
+          return;
+        }
+        loadWaterPoints(); /* independent of boundaries; failures are handled inside */
+        if (!data) return;
+        LV.forEach((l) => map.getSource(l.id).setData(data[l.id]));
+        dataReady = true;
+        if (S.dataSource !== CFG.source) showNote("Boundary API unavailable, showing static files. Indicators are disabled.");
+        runChecks();
+        restyle();
+        applyScope();
+        render();
+        fitAll();
+        onMapReady();
+      }
+      applyTheme(root.dataset.theme || "light", false);
+      boot();
     </script>
   </body>
 </html>
