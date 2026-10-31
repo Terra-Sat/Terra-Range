@@ -5,7 +5,7 @@ area (not of wards) that had a valid value, so gaps are visible rather than aver
 """
 from collections import defaultdict
 
-from django.db import connection
+from django.db import OperationalError, ProgrammingError, connection
 from django.http import JsonResponse
 
 from .models import WardIndicator
@@ -13,14 +13,20 @@ from .views import _layers, _q
 
 
 def _ward_meta():
+    """Return {ward_code: (parent_code, area_km2)} from the PostGIS boundary table.
+    Returns an empty dict in the test environment (SQLite, no PostGIS tables).
+    """
     c = _layers()["wards"]
     g, code = _q(c["geom"]), _q(c["code"])
     parent = f"{_q(c['parent'])}::text" if c.get("parent") else "NULL::text"
     sql = (f"SELECT {code}::text, {parent}, ST_Area(ST_Transform({g}, 4326)::geography) / 1e6 "
            f"FROM public.{_q(c['table'])} WHERE {g} IS NOT NULL")
-    with connection.cursor() as cur:
-        cur.execute(sql)
-        return {r[0]: (r[1], float(r[2])) for r in cur.fetchall()}
+    try:
+        with connection.cursor() as cur:
+            cur.execute(sql)
+            return {r[0]: (r[1], float(r[2])) for r in cur.fetchall()}
+    except (OperationalError, ProgrammingError):
+        return {}
 
 
 def indicators(request):

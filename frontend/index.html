@@ -304,6 +304,63 @@
         text-transform: uppercase;
         color: var(--muted);
       }
+      /* ---- pixel layer panel ---- */
+      #pixSec { padding: 12px 18px; border-top: 1px solid var(--line); }
+      #pixSec h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 700; }
+      .pix-seg {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 8px;
+      }
+      .pix-seg button {
+        border: 0;
+        background: var(--surface);
+        color: var(--ink);
+        padding: 8px 4px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        border-right: 1px solid var(--line);
+      }
+      .pix-seg button:last-child { border-right: 0; }
+      .pix-seg button[aria-pressed="true"] { color: #fff; background: var(--lc); }
+      #pixPeriodSel { margin-bottom: 6px; }
+      #pixOpacityWrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+      #pixOpacityWrap input { flex: 1; }
+      #pixLegend {
+        margin: 4px 0 2px;
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+      }
+      .pix-cls-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 6px;
+        font-size: 12px;
+      }
+      .pix-cls-swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        flex-shrink: 0;
+        border: 1px solid rgba(0,0,0,0.12);
+      }
+      #pixRamp {
+        height: 10px;
+        border-radius: 4px;
+        margin: 4px 0 2px;
+        border: 1px solid var(--line);
+      }
+      #pixLg { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+      #pixNote { font-size: 12px; color: var(--muted); margin: 4px 0 0; line-height: 1.4; }
+      #pixNote[hidden] { display: none; }
+      #pixErr { font-size: 12px; color: var(--bad); margin: 4px 0 0; }
+      #pixErr[hidden] { display: none; }
       /* responsive + motion: last so they override the base rules above */
       @media (max-width: 820px) {
         body { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
@@ -350,6 +407,33 @@
         <ul id="list"></ul>
       </section>
       <section id="indSec"></section>
+
+      <!-- ── Pixel raster layers (VCI / NDVI) ────────────────────────── -->
+      <section id="pixSec">
+        <h2>Pixel raster layers</h2>
+        <div class="pix-seg" role="group" aria-label="Pixel indicator">
+          <button type="button" id="pixBtnOff"  aria-pressed="true"  data-pind="">Off</button>
+          <button type="button" id="pixBtnVci"  aria-pressed="false" data-pind="vci">VCI</button>
+          <button type="button" id="pixBtnNdvi" aria-pressed="false" data-pind="ndvi">NDVI</button>
+        </div>
+        <div id="pixCtl" hidden>
+          <label for="pixPeriodSel" style="font-size:13px;color:var(--muted);display:block;margin-bottom:2px">Period</label>
+          <select id="pixPeriodSel" aria-label="Pixel period"></select>
+          <div id="pixOpacityWrap">
+            <span>Opacity</span>
+            <input type="range" id="pixOpacity" min="0" max="100" value="70" aria-label="Layer opacity">
+            <span id="pixOpacityVal">70%</span>
+          </div>
+          <!-- VCI class legend -->
+          <div id="pixLegend" aria-label="VCI class legend"></div>
+          <!-- NDVI ramp legend -->
+          <div id="pixRamp" hidden style="background:linear-gradient(90deg,#785028,#be8c50,#ebd782,#aacf5a,#3ca03c,#005a28)"></div>
+          <div id="pixLg" hidden><span>−0.2</span><span>0.8</span></div>
+          <p id="pixNote" hidden></p>
+          <p id="pixErr"  hidden></p>
+        </div>
+      </section>
+
       <section>
         <h2>Data checks</h2>
         <ul id="checks"></ul>
@@ -1586,6 +1670,186 @@
       }
       applyTheme(root.dataset.theme || "light", false);
       boot();
+
+      /* =====================================================================
+         PIXEL RASTER LAYER  –  VCI and NDVI from /api/v1/boundaries/pixels/
+         ===================================================================== */
+      const PIX_API = "/api/v1/boundaries/pixels/";
+      const PIX_SRC  = "pix-raster";
+      const PIX_LYR  = "pix-raster-layer";
+      const PIX = {
+        ind: "",          // active indicator: "", "vci", or "ndvi"
+        layers: {},       // {vci: [...meta], ndvi: [...meta]}
+        selPk: null,      // currently displayed layer pk
+        opacity: 0.70,
+      };
+
+      /* VCI class colours (mirror pixel_store.py DEFAULT_COLORS) */
+      const VCI_CLASSES = [
+        { name: "Emergency", range: "< 20",      rgba: [127,  29,  29, 255] },
+        { name: "Alarm",     range: "20 – < 35", rgba: [220,  38,  38, 255] },
+        { name: "Alert",     range: "35 – < 50", rgba: [245, 158,  11, 255] },
+        { name: "Normal",    range: "≥ 50",      rgba: [ 22, 163,  74, 255] },
+      ];
+
+      function pixErr(msg) {
+        const el = $("pixErr");
+        el.textContent = msg || "";
+        el.hidden = !msg;
+      }
+      function pixNote(msg) {
+        const el = $("pixNote");
+        el.textContent = msg || "";
+        el.hidden = !msg;
+      }
+
+      /* ── legend renderers ────────────────────────────────────────────── */
+      function renderVciLegend() {
+        $("pixLegend").innerHTML = VCI_CLASSES.map((c) => {
+          const [r, g, b] = c.rgba;
+          return `<div class="pix-cls-row">
+            <span class="pix-cls-swatch" style="background:rgb(${r},${g},${b})"></span>
+            <span>${esc(c.name)}</span>
+            <span style="margin-left:auto;color:var(--muted)">${esc(c.range)}</span>
+          </div>`;
+        }).join("");
+        $("pixLegend").hidden = false;
+        $("pixRamp").hidden = true;
+        $("pixLg").hidden = true;
+      }
+      function renderNdviLegend() {
+        $("pixLegend").hidden = true;
+        $("pixRamp").hidden = false;
+        $("pixLg").hidden = false;
+      }
+
+      /* ── map source / layer management ──────────────────────────────── */
+      function ensurePixSource() {
+        if (!styleReady) return;
+        if (!map.getSource(PIX_SRC)) {
+          map.addSource(PIX_SRC, { type: "image", url: "", coordinates: [[0,1],[1,1],[1,0],[0,0]] });
+          map.addLayer({
+            id: PIX_LYR, type: "raster", source: PIX_SRC,
+            paint: { "raster-opacity": PIX.opacity, "raster-opacity-transition": { duration: 300 } },
+          });
+        }
+      }
+
+      function setPixOpacity(v) {
+        PIX.opacity = v / 100;
+        if (styleReady && map.getLayer(PIX_LYR))
+          map.setPaintProperty(PIX_LYR, "raster-opacity", PIX.opacity);
+      }
+
+      function showPixLayer(meta) {
+        if (!styleReady) return;
+        ensurePixSource();
+        PIX.selPk = meta.pk;
+        /* MapLibre image source needs the absolute URL */
+        const url = location.origin + meta.image_url;
+        const [w, s, e, n] = meta.bounds;
+        const src = map.getSource(PIX_SRC);
+        src.updateImage({ url, coordinates: [[w,n],[e,n],[e,s],[w,s]] });
+        map.setLayoutProperty(PIX_LYR, "visibility", "visible");
+        map.moveLayer(PIX_LYR);  // keep raster under vector boundary lines
+        /* push boundary lines to top */
+        ["counties-line","constituencies-line","wards-line",
+         "counties-fill","constituencies-fill","wards-fill",
+         "waterpoints","waterpoints-labels"]
+          .filter(id => map.getLayer(id))
+          .forEach(id => map.moveLayer(id));
+        pixNote(meta.status_note || "");
+        pixErr("");
+      }
+
+      function hidePixLayer() {
+        if (styleReady && map.getLayer(PIX_LYR))
+          map.setLayoutProperty(PIX_LYR, "visibility", "none");
+        pixNote(""); pixErr("");
+      }
+
+      /* ── data fetch and period selector ─────────────────────────────── */
+      async function loadPixLayers(ind) {
+        if (PIX.layers[ind]) return PIX.layers[ind];
+        const j = await getJSON(`${PIX_API}?indicator=${ind}`);
+        PIX.layers[ind] = (j.layers || []).map(l => ({
+          pk:         l.id,
+          period:     l.period_start,
+          period_end: l.period_end,
+          bounds:     l.bounds,         // [w,s,e,n]
+          image_url:  l.image_url,
+          status:     l.status,
+          status_note: j.note || "",
+        }));
+        return PIX.layers[ind];
+      }
+
+      function buildPeriodSelect(layers) {
+        const sel = $("pixPeriodSel");
+        sel.innerHTML = layers.map(l =>
+          `<option value="${l.pk}">${esc(l.period)} → ${esc(l.period_end)}</option>`
+        ).join("");
+        if (layers.length) sel.value = String(layers[0].pk);
+      }
+
+      async function applyPixInd(ind) {
+        PIX.ind = ind;
+        /* update toggle buttons */
+        ["pixBtnOff","pixBtnVci","pixBtnNdvi"].forEach(id => {
+          const btn = $(id);
+          btn.setAttribute("aria-pressed", btn.dataset.pind === ind ? "true" : "false");
+        });
+        const ctl = $("pixCtl");
+        if (!ind) { ctl.hidden = true; hidePixLayer(); return; }
+        ctl.hidden = false;
+        pixErr(""); pixNote("Loading…");
+        let layers;
+        try {
+          layers = await loadPixLayers(ind);
+        } catch (e) {
+          pixErr(`Could not load ${ind.toUpperCase()} pixel layers: ${e.message}`);
+          pixNote("");
+          return;
+        }
+        if (!layers.length) {
+          pixNote(`No ${ind.toUpperCase()} pixel layers stored yet. Run: python manage.py update_pixels`);
+          $("pixPeriodSel").innerHTML = "";
+          hidePixLayer();
+          return;
+        }
+        buildPeriodSelect(layers);
+        if (ind === "vci") renderVciLegend(); else renderNdviLegend();
+        /* show the latest (first in desc list) */
+        showPixLayer(layers[0]);
+      }
+
+      /* ── wire up controls ────────────────────────────────────────────── */
+      document.querySelectorAll(".pix-seg button").forEach(btn => {
+        btn.addEventListener("click", () => applyPixInd(btn.dataset.pind));
+      });
+
+      $("pixPeriodSel").addEventListener("change", (e) => {
+        const pk = +e.target.value;
+        const layers = PIX.layers[PIX.ind] || [];
+        const meta = layers.find(l => l.pk === pk);
+        if (meta) showPixLayer(meta);
+      });
+
+      $("pixOpacity").addEventListener("input", (e) => {
+        $("pixOpacityVal").textContent = e.target.value + "%";
+        setPixOpacity(+e.target.value);
+      });
+
+      /* after the map style loads, ensure the source exists if already active */
+      const _origStyleReady = () => {
+        if (PIX.ind) { ensurePixSource(); if (PIX.layers[PIX.ind]) applyPixInd(PIX.ind); }
+      };
+      /* Hook into the existing map.on("load") by observing styleReady --
+         the cleanest non-invasive approach without touching the boot() flow */
+      (function waitStyleReady() {
+        if (styleReady) { _origStyleReady(); return; }
+        setTimeout(waitStyleReady, 150);
+      })();
     </script>
   </body>
 </html>

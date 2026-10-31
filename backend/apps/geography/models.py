@@ -69,3 +69,98 @@ class IngestRun(models.Model):
     status = models.CharField(max_length=12, default="running")      # running, ok, failed
     rows_written = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
+
+
+"""Models for stored pixel layers, ward class shares and seasonal outlooks.
+
+Import from models.py with:   from .pixel_models import *  # noqa
+
+Design notes
+------------
+* PixelLayer keeps the *values* (uint8, 1 VCI unit per step), not a coloured
+  image. Colours and class breaks are applied at request time, so changing the
+  illustrative VCI classes after NDMA validation needs no re-ingest.
+* SeasonalOutlook is a separate table from WardIndicator on purpose: its rows
+  describe the future and carry an issue date and a lead month, which would
+  break the "latest period with data" logic used for observed indicators.
+* No PostGIS fields are used, so these tables are SQLite-testable. Boundary
+  tables stay untouched (raw SQL only), as the handover requires.
+"""
+
+
+__all__ = ["PixelLayer", "WardClassShare", "SeasonalOutlook"]
+
+
+class PixelLayer(models.Model):
+    indicator = models.CharField(max_length=32, db_index=True)  # e.g. "vci"
+    period_start = models.DateField(db_index=True)
+    period_end = models.DateField()
+    width = models.PositiveIntegerField()
+    height = models.PositiveIntegerField()
+    # EPSG:4326 extent of the raster edges (not pixel centres)
+    west = models.FloatField()
+    south = models.FloatField()
+    east = models.FloatField()
+    north = models.FloatField()
+    # zlib-compressed uint8, row-major, north-up. 255 = no data (never zero).
+    values = models.BinaryField()
+    encoding = models.CharField(max_length=32, default="u8-floor-0-100-nd255")
+    source = models.CharField(max_length=200)
+    methodology_version = models.CharField(max_length=40)
+    status = models.CharField(max_length=24, default="Derived")
+    params = models.JSONField(default=dict, blank=True)  # baseline, QA rule, etc.
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("indicator", "period_start")]
+        ordering = ["-period_start"]
+
+    def __str__(self):
+        return f"{self.indicator} {self.period_start} ({self.width}x{self.height})"
+
+    @property
+    def bounds(self):
+        return (self.west, self.south, self.east, self.north)
+
+
+class WardClassShare(models.Model):
+    """Share of valid pixels per class inside a ward, for one PixelLayer."""
+    layer = models.ForeignKey(PixelLayer, on_delete=models.CASCADE, related_name="shares")
+    ward_code = models.CharField(max_length=32, db_index=True)
+    n_total = models.PositiveIntegerField()   # pixel centres inside the ward
+    n_valid = models.PositiveIntegerField()   # ... that have data
+    coverage = models.FloatField(null=True)   # percent valid, NULL if n_total == 0
+    pct_emergency = models.FloatField(null=True)
+    pct_alarm = models.FloatField(null=True)
+    pct_alert = models.FloatField(null=True)
+    pct_normal = models.FloatField(null=True)
+    breaks = models.CharField(max_length=64)  # breaks used, e.g. "20,35,50"
+
+    class Meta:
+        unique_together = [("layer", "ward_code")]
+
+
+class SeasonalOutlook(models.Model):
+    """Ward-level value from an EXTERNAL seasonal forecast. Status is Reported.
+
+    lead 1 = the calendar month of issue, 2 = next month, 3 = the one after
+    (a convention of this project, see import_outlook). Not a Terra Range
+    prediction and not validated for Marsabit.
+    """
+    issued = models.DateField(db_index=True)
+    lead = models.PositiveSmallIntegerField()
+    valid_start = models.DateField()
+    valid_end = models.DateField()
+    ward_code = models.CharField(max_length=32, db_index=True)
+    variable = models.CharField(max_length=40)   # e.g. spi_pctile, p_below
+    units = models.CharField(max_length=24, blank=True, default="")
+    value = models.FloatField(null=True)         # NULL = missing, never zero
+    source = models.CharField(max_length=120)    # issuing centre / product
+    methodology_version = models.CharField(max_length=40)
+    status = models.CharField(max_length=24, default="Reported")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("issued", "lead", "ward_code", "variable", "source")]
+        ordering = ["-issued", "lead", "ward_code"]
