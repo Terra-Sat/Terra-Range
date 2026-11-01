@@ -43,7 +43,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, models
 from django.utils import timezone
 
-from ...models import IngestRun, WardIndicator, WardStat
+from ...models import ClimateIndex, IngestRun, WardIndicator, WardStat
 from ...views import _layers, _q
 
 # --------------------------------------------------------------------------- constants

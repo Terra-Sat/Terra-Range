@@ -164,3 +164,45 @@ class SeasonalOutlook(models.Model):
     class Meta:
         unique_together = [("issued", "lead", "ward_code", "variable", "source")]
         ordering = ["-issued", "lead", "ward_code"]
+
+
+
+class ClimateIndex(models.Model):
+    """Raw climate driver index file (ONI, Nino3.4, DMI) stored zlib-compressed.
+
+    The payload is the verbatim UTF-8 bytes from the source URL, compressed with
+    zlib at level 9.  Typical files (a few hundred KB of ASCII text) compress to
+    roughly 20-35 % of their original size.
+
+    Usage::
+        obj = ClimateIndex.objects.get(name='oni_cpc')
+        text = obj.get_text()          # decompresses on demand
+    """
+
+    name = models.CharField(max_length=80, unique=True)    # e.g. "oni_cpc"
+    source_file = models.CharField(max_length=120)          # relative path in data/raw
+    provider = models.CharField(max_length=80, blank=True)
+    # zlib-compressed UTF-8 of the original text file; decompress with zlib.decompress()
+    data_compressed = models.BinaryField()
+    raw_bytes = models.PositiveIntegerField()
+    compressed_bytes = models.PositiveIntegerField()
+    retrieved_at = models.DateField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "geography"
+
+    def get_text(self) -> str:
+        """Decompress and decode the stored payload."""
+        import zlib
+        return zlib.decompress(bytes(self.data_compressed)).decode("utf-8")
+
+    @property
+    def compression_ratio(self) -> float:
+        return self.compressed_bytes / self.raw_bytes if self.raw_bytes else 1.0
+
+    def __str__(self):
+        return (
+            f"{self.name} ({self.raw_bytes} B \u2192 {self.compressed_bytes} B, "
+            f"{self.compression_ratio:.0%})"
+        )
