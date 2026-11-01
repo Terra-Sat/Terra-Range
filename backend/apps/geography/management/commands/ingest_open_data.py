@@ -40,7 +40,7 @@ import zlib
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection, models
+from django.db import connection
 from django.utils import timezone
 
 from ...models import ClimateIndex, IngestRun, WardIndicator, WardStat
@@ -384,48 +384,6 @@ def load_glw4(raw_dir: Path, log) -> int:
 
 
 # --------------------------------------------------------------------------- climate driver loader
-# ClimateIndex is defined inline here.  After first run:
-#   python manage.py makemigrations geography
-#   python manage.py migrate
-
-class ClimateIndex(models.Model):
-    """Raw climate driver index file (ONI, Nino3.4, DMI) stored compressed."""
-    name = models.CharField(max_length=80, unique=True)          # e.g. "oni_cpc"
-    source_file = models.CharField(max_length=120)               # relative path in data/raw
-    provider = models.CharField(max_length=80, blank=True)
-    # zlib-compressed UTF-8 of the original text file; decompress with zlib.decompress()
-    data_compressed = models.BinaryField()
-    # uncompressed byte count – lets callers know size without decompressing
-    raw_bytes = models.PositiveIntegerField()
-    # compression ratio for monitoring
-    compressed_bytes = models.PositiveIntegerField()
-    retrieved_at = models.DateField()
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        app_label = "geography"
-
-    def get_text(self) -> str:
-        """Decompress and decode the stored payload."""
-        return zlib.decompress(bytes(self.data_compressed)).decode("utf-8")
-
-    @classmethod
-    def store(cls, name: str, source_file: str, provider: str, raw: bytes) -> "ClimateIndex":
-        compressed = zlib.compress(raw, level=9)
-        obj, _ = cls.objects.update_or_create(
-            name=name,
-            defaults=dict(
-                source_file=source_file,
-                provider=provider,
-                data_compressed=compressed,
-                raw_bytes=len(raw),
-                compressed_bytes=len(compressed),
-                retrieved_at=dt.date.today(),
-            ),
-        )
-        return obj
-
-
 DRIVER_PROVIDERS = {
     "oni_cpc": "NOAA CPC",
     "nino34_anom_psl": "NOAA PSL",
@@ -454,7 +412,7 @@ def load_climate_indices(raw_dir: Path, log) -> int:
         raw = f.read_bytes()
         name = f.stem  # e.g. "oni_cpc" from "oni_cpc.txt"
         provider = DRIVER_PROVIDERS.get(name, "NOAA")
-        obj = ClimateIndex.store(
+        obj = _store_climate_index(
             name=name,
             source_file=str(f.relative_to(raw_dir)),
             provider=provider,

@@ -197,6 +197,24 @@ class ClimateIndex(models.Model):
         import zlib
         return zlib.decompress(bytes(self.data_compressed)).decode("utf-8")
 
+    @classmethod
+    def store(cls, name: str, source_file: str, provider: str, raw: bytes) -> "ClimateIndex":
+        """Compress *raw* at level 9 and upsert the ClimateIndex row."""
+        import zlib, datetime as _dt
+        compressed = zlib.compress(raw, level=9)
+        obj, _ = cls.objects.update_or_create(
+            name=name,
+            defaults=dict(
+                source_file=source_file,
+                provider=provider,
+                data_compressed=compressed,
+                raw_bytes=len(raw),
+                compressed_bytes=len(compressed),
+                retrieved_at=_dt.date.today(),
+            ),
+        )
+        return obj
+
     @property
     def compression_ratio(self) -> float:
         return self.compressed_bytes / self.raw_bytes if self.raw_bytes else 1.0

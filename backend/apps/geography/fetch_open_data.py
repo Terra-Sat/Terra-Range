@@ -216,7 +216,10 @@ def mk_chirps(ee, y):
 
     def month(n):
         s = ee.Date.fromYMD(y, 1, 1).advance(n, "month")
-        return ch.filterDate(s, s.advance(1, "month")).sum().rename("rain_mm").set("date", s.format("YYYY-MM-dd"))
+        col = ch.filterDate(s, s.advance(1, "month"))
+        empty = ee.Image.constant(0).rename("rain_mm").updateMask(0)
+        img = ee.Image(ee.Algorithms.If(col.size().gt(0), col.sum().rename("rain_mm"), empty))
+        return img.set("date", s.format("YYYY-MM-dd"))
     return ee.ImageCollection(ee.List.sequence(0, last).map(month))
 
 
@@ -340,23 +343,29 @@ def fetch_nasa_power(ctx):
 
 
 INDICES = {"oni_cpc.txt": "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt",
-           "nino34_anom_psl.data": "https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/nino34.long.anom.data",
+           "nino34_anom_psl.data": "https://psl.noaa.gov/data/correlation/nina34.anom.data",
            "dmi_hadisst_psl.data": "https://psl.noaa.gov/gcos_wgsp/Timeseries/Data/dmi.had.long.data"}
 
 
 def fetch_indices(ctx):
     n = 0
+    errors = []
     for name, url in INDICES.items():
         if ctx.store.exists(f"climate_drivers/{name}") and not ctx.args.refresh:
             continue
-        ctx.store.write(f"climate_drivers/{name}", get_bytes(url, 5 * MB),
-                        dict(dataset=f"Climate driver index ({name})", provider="NOAA CPC / PSL", url=url,
-                             licence="US public domain", period="long record", resolution="monthly/seasonal",
-                             notes="ENSO (ONI, Nino3.4) and Indian Ocean Dipole (DMI); IOD matters for OND rains"))
-        n += 1
-    if not n:
+        try:
+            ctx.store.write(f"climate_drivers/{name}", get_bytes(url, 5 * MB),
+                            dict(dataset=f"Climate driver index ({name})", provider="NOAA CPC / PSL", url=url,
+                                 licence="US public domain", period="long record", resolution="monthly/seasonal",
+                                 notes="ENSO (ONI, Nino3.4) and Indian Ocean Dipole (DMI); IOD matters for OND rains"))
+            n += 1
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+    if not n and not errors:
         raise Skip("already present")
-    return f"{n} files"
+    if not n and errors:
+        raise Skip(f"all failed: {', '.join(errors)}")
+    return f"{n} files" + (f" ({len(errors)} failed)" if errors else "")
 
 
 def hdx_find(query, must):
@@ -378,7 +387,15 @@ def fetch_wfp_prices(ctx):
     rows = list(csv.reader(io.StringIO(get_bytes(res["url"], ctx.args.max_transfer).decode("utf-8-sig"))))
     head = rows[0]
     a1 = head.index("admin1") if "admin1" in head else None
-    keep = [rows[0]] + [r for r in rows[1:] if r and (r[0].startswith("#") or a1 is None or r[a1] in COUNTIES)]
+    a2 = head.index("admin2") if "admin2" in head else None
+    keep = [rows[0]] + [
+        r for r in rows[1:]
+        if r and (
+            r[0].startswith("#") or
+            (a2 is not None and r[a2] in COUNTIES) or
+            (a1 is not None and r[a1] in COUNTIES)
+        )
+    ]
     out = io.StringIO()
     csv.writer(out).writerows(keep)
     ctx.store.write(rel, out.getvalue(), dict(dataset="WFP food prices, Kenya (Marsabit and neighbouring counties)", provider="WFP via HDX",
@@ -431,14 +448,17 @@ def fetch_fews_lhz(ctx):
     rel_dir = "static/fewsnet_livelihood_zones"
     if (ctx.store.root / rel_dir).exists() and not ctx.args.refresh:
         raise Skip("already present")
-    z = zipfile.ZipFile(io.BytesIO(get_bytes("http://shapefiles.fews.net.s3.amazonaws.com/LHZ/FEWS_NET_LH_World.zip", ctx.args.max_transfer)))
-    names = [n for n in z.namelist() if re.search(r"(^|/)(ke|ken|kenya)[_\-. ]", n.lower())]
-    if not names:
-        raise Skip(f"no Kenya files found in the archive ({len(z.namelist())} entries, e.g. {z.namelist()[:4]})")
+    url = "https://data.humdata.org/dataset/4a6e7370-d87e-4734-9581-a68f36302c22/resource/944a9064-cc14-42c2-b035-c29a971bcaf1/download/kenyalivehoodshapefiles.zip"
+    try:
+        raw = get_bytes(url, ctx.args.max_transfer)
+    except Exception as e:
+        raise Skip(f"FEWS NET livelihood zones download unavailable ({e})")
+    z = zipfile.ZipFile(io.BytesIO(raw))
+    names = [n for n in z.namelist() if not n.endswith("/")]
     for n in names:
         ctx.store.write(f"{rel_dir}/{Path(n).name}", z.read(n),
-                        dict(dataset="FEWS NET livelihood zones, Kenya", provider="FEWS NET", url="fews.net/data/livelihood-zones",
-                             licence="not specified: keep FEWS NET attribution", period="latest zoning", resolution="polygons"))
+                        dict(dataset="FEWS NET livelihood zones, Kenya", provider="FEWS NET via HDX",
+                             url=url, licence="CC BY-IGO", period="latest zoning", resolution="polygons"))
     return f"{len(names)} files"
 
 
@@ -482,7 +502,10 @@ def fetch_knbs_census(ctx):
     rel = "static/knbs_2019_census_vol2_marsabit_pages.txt"
     ctx.skip_if_have(rel)
     url = "https://www.knbs.or.ke/download/2019-kenya-population-and-housing-census-volume-ii-distribution-of-population-by-administrative-units/"
-    pdf = get_bytes(url, ctx.args.max_transfer)
+    try:
+        pdf = get_bytes(url, ctx.args.max_transfer)
+    except Exception as e:
+        raise Skip(f"KNBS census download unavailable ({e}); download Volume II manually from knbs.or.ke")
     if not pdf.startswith(b"%PDF"):
         raise Skip("KNBS returned a web page, not the PDF; download Volume II manually from knbs.or.ke")
     sha = hashlib.sha256(pdf).hexdigest()
