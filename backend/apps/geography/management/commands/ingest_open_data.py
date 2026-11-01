@@ -43,24 +43,31 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.utils import timezone
 
-from ...models import ClimateIndex, IngestRun, WardIndicator, WardStat
+from ...models import ClimateIndex, IngestRun, WardIndicator, WardStat, WaterPoint
 from ...views import _layers, _q
 
 # --------------------------------------------------------------------------- constants
-METH = "open-data-1.0"
+METH = "1.0"
 BATCH = 2000
 
-# ERA5 variables as they appear in the CSV header
-ERA5_COLS = [
-    "temperature_2m",
-    "total_precipitation_sum",
-    "volumetric_soil_water_layer_1",
-    "volumetric_soil_water_layer_2",
-    "potential_evaporation_sum",
-]
+# Clean indicator slug mappings (< 24 chars for WardIndicator.indicator)
+ERA5_MAP = {
+    "temperature_2m": "era5_temp_2m",
+    "total_precipitation_sum": "era5_precip_sum",
+    "volumetric_soil_water_layer_1": "era5_soil_water_l1",
+    "volumetric_soil_water_layer_2": "era5_soil_water_l2",
+    "potential_evaporation_sum": "era5_pet_sum",
+}
 
-# NASA POWER parameters as they appear in the CSV header
-POWER_COLS = ["T2M", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "RH2M", "ALLSKY_SFC_SW_DWN", "WS2M"]
+POWER_MAP = {
+    "T2M": "pwr_temp_2m",
+    "T2M_MAX": "pwr_temp_max",
+    "T2M_MIN": "pwr_temp_min",
+    "PRECTOTCORR": "pwr_precip",
+    "RH2M": "pwr_rh2m",
+    "ALLSKY_SFC_SW_DWN": "pwr_solar_rad",
+    "WS2M": "pwr_wind_2m",
+}
 
 
 # --------------------------------------------------------------------------- helpers
@@ -225,15 +232,14 @@ def load_era5(path: Path, log) -> int:
     rows = []
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        # header may have only a subset of ERA5_COLS depending on the fetch run
-        present = [c for c in ERA5_COLS if c in (reader.fieldnames or [])]
+        present = [c for c in ERA5_MAP if c in (reader.fieldnames or [])]
         for r in reader:
             start = dt.date.fromisoformat(r["date"])
             end = _period_end(start, "monthly")
             for col in present:
                 v = _safe_float(r.get(col))
                 rows.append(dict(
-                    ward_code=r["code"], indicator=f"era5_{col[:24]}",
+                    ward_code=r["code"], indicator=ERA5_MAP[col],
                     period_start=start, period_end=end,
                     value=v, valid_fraction=None, source="era5-land-open",
                 ))
@@ -247,7 +253,7 @@ def load_nasa_power(path: Path, log) -> int:
     rows = []
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        present = [c for c in POWER_COLS if c in (reader.fieldnames or [])]
+        present = [c for c in POWER_MAP if c in (reader.fieldnames or [])]
         for r in reader:
             # column is YYYY-MM  (e.g. 2023-07)
             month_str = r.get("month", "")
@@ -259,7 +265,7 @@ def load_nasa_power(path: Path, log) -> int:
             for col in present:
                 v = _safe_float(r.get(col))
                 rows.append(dict(
-                    ward_code=r["code"], indicator=f"power_{col.lower()[:20]}",
+                    ward_code=r["code"], indicator=POWER_MAP[col],
                     period_start=start, period_end=end,
                     value=v, valid_fraction=None, source="nasa-power-open",
                 ))
@@ -307,6 +313,105 @@ def load_ward_static(path: Path, log) -> int:
     n = _save_stats(rows)
     log(f"  ward_static: {n} stat rows ({len(stat_cols)} columns)")
     return n
+
+
+KINDS = [
+    (r"bore", "borehole"), (r"\bwell\b", "well"), (r"spring", "spring"),
+    (r"\b(dam|pan|reservoir|pond|lake|basin)\b", "surface water"), (r"water ?hole", "waterhole"),
+    (r"\btap\b|kiosk|drinking|water point", "tap"), (r"pump", "well"),
+]
+
+
+def kind_of(text: str) -> str:
+    import re
+    t = (text or "").lower().replace("_", " ")
+    return next((k for pat, k in KINDS if re.search(pat, t)), "other")
+
+
+def status_of(text: str) -> str:
+    import re
+    t = (text or "").lower()
+    if re.search(r"non.?function|not function|broken|defunct|abandon|dry|dead|no", t):
+        return "non_functional"
+    return "functional" if re.search(r"function|working|operational|yes", t) else "unknown"
+
+
+def load_icpac_water(path: Path, log) -> int:
+    """static/icpac_ken_waterpoints1.geojson → WaterPoint rows"""
+    import json
+    data = json.load(path.open(encoding="utf-8"))
+    feats = data.get("features", [])
+    objs = []
+    for f in feats:
+        geom = f.get("geometry") or {}
+        coords = geom.get("coordinates")
+        if not coords or len(coords) < 2:
+            continue
+        props = f.get("properties") or {}
+        sid = str(f.get("id") or props.get("DNPOINT_ID") or "")
+        desc = str(props.get("DNPTTYPETX") or "")
+        objs.append(WaterPoint(
+            source="icpac-act",
+            source_id=sid,
+            name=desc[:160],
+            kind=kind_of(desc),
+            lat=float(coords[1]),
+            lon=float(coords[0]),
+            reported_status="unknown",
+            raw=props,
+        ))
+    if objs:
+        WaterPoint.objects.bulk_create(
+            objs, batch_size=BATCH, update_conflicts=True,
+            unique_fields=["source", "source_id"],
+            update_fields=["lat", "lon", "kind", "raw"],
+        )
+    log(f"  icpac_water: {len(objs)} water points")
+    return len(objs)
+
+
+def load_wpdx(path: Path, log) -> int:
+    """static/wpdx_marsabit_area.csv → WaterPoint rows"""
+    objs = []
+    with path.open(newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            la = _safe_float(r.get("lat_deg"))
+            lo = _safe_float(r.get("lon_deg"))
+            if la is None or lo is None:
+                continue
+            sid = str(r.get("row_id") or "")
+            kind_txt = f"{r.get('water_source', '')} {r.get('water_tech', '')}"
+            objs.append(WaterPoint(
+                source="wpdx",
+                source_id=sid,
+                name=(r.get("water_source") or "")[:160],
+                kind=kind_of(kind_txt),
+                lat=la,
+                lon=lo,
+                reported_status=status_of(r.get("status_id")),
+                raw=r,
+            ))
+    if objs:
+        WaterPoint.objects.bulk_create(
+            objs, batch_size=BATCH, update_conflicts=True,
+            unique_fields=["source", "source_id"],
+            update_fields=["lat", "lon", "kind", "reported_status", "raw"],
+        )
+    log(f"  wpdx: {len(objs)} water points")
+    return len(objs)
+
+
+def load_wfp_prices_compressed(path: Path, log) -> int:
+    """timeseries/wfp_food_prices_kenya_north.csv → ClimateIndex (compressed level 9)."""
+    raw = path.read_bytes()
+    obj = ClimateIndex.store(
+        name="wfp_food_prices_kenya_north",
+        source_file=str(path),
+        provider="WFP via HDX",
+        raw=raw,
+    )
+    log(f"  wfp_prices (compressed): {obj.raw_bytes} B → {obj.compressed_bytes} B ({obj.compression_ratio:.1%})")
+    return 1
 
 
 def load_glw4(raw_dir: Path, log) -> int:
@@ -412,7 +517,7 @@ def load_climate_indices(raw_dir: Path, log) -> int:
         raw = f.read_bytes()
         name = f.stem  # e.g. "oni_cpc" from "oni_cpc.txt"
         provider = DRIVER_PROVIDERS.get(name, "NOAA")
-        obj = _store_climate_index(
+        obj = ClimateIndex.store(
             name=name,
             source_file=str(f.relative_to(raw_dir)),
             provider=provider,
@@ -476,6 +581,7 @@ class Command(BaseCommand):
                     ("wapor_npp_dekadal_v2_raw.csv", load_wapor_npp),
                     ("era5land_monthly.csv", load_era5),
                     ("nasa_power_monthly_ward_centroids.csv", load_nasa_power),
+                    ("wfp_food_prices_kenya_north.csv", load_wfp_prices_compressed),
                 ]:
                     p = ts_dir / fname
                     if not p.exists():
@@ -486,12 +592,14 @@ class Command(BaseCommand):
                     except Exception as e:
                         log(self.style.WARNING(f"  {fname}: FAILED – {e}"))
 
-            # ---- static ward stats ----
+            # ---- static ward stats & water points ─────────────────
             if "static" in todo:
-                log("── Static ward statistics ──────────────────────────────")
+                log("── Static ward statistics & water points ───────────────")
                 for fname, loader in [
                     ("worldpop_ward_population_2000_2020.csv", load_worldpop),
                     ("ward_static_water_land_terrain.csv", load_ward_static),
+                    ("icpac_ken_waterpoints1.geojson", load_icpac_water),
+                    ("wpdx_marsabit_area.csv", load_wpdx),
                 ]:
                     p = st_dir / fname
                     if not p.exists():
