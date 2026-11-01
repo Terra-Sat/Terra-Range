@@ -12,7 +12,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 import ee
-from .models import PixelLayer
+from apps.geography.models import PixelLayer
 
 COL, BASE, QA_MAX = "MODIS/061/MOD13Q1", (2001, 2020), 1
 THRESH = [0.0, 0.05, 0.10, 0.15, 0.20]
@@ -51,7 +51,7 @@ try:
              .reduceRegion(reducer=pct, **KW).getInfo())
 
     kept_img = ee.Image.cat(
-        [rng.gte(t).unmask(0).rename(f"keep_{t:.2f}") for t in THRESH]
+        [rng.gte(t).unmask(0).rename(f"keep_{int(round(t * 100)):03d}") for t in THRESH]
         + [cur_valid.rename("cur_valid")])
     keep = kept_img.updateMask(cur_valid).reduceRegion(reducer=ee.Reducer.mean(), **KW).getInfo()
     cur = kept_img.select("cur_valid").reduceRegion(reducer=ee.Reducer.mean(), **KW).getInfo()
@@ -67,6 +67,6 @@ for p in (5, 10, 25, 50, 75, 90):
 print("\nShare of valid pixels that VCI would KEEP at each --min-range:")
 for t in THRESH:
     tag = "  (= baseline defined at all)" if t == 0.0 else ""
-    print(f"  min-range {t:.2f}: {100 * keep[f'keep_{t:.2f}']:.1f}%{tag}")
+    print(f"  min-range {t:.2f}: {100 * keep[f'keep_{int(round(t * 100)):03d}']:.1f}%{tag}")
 print("\nYour trial stored VCI valid / NDVI valid = 43.2 / 90.2 = 47.9%, so if the mask "
       "explains the gap, 'min-range 0.10' above should be close to 48%.")
