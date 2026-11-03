@@ -322,6 +322,69 @@ def _resolve_openrouter_model(model_name=None):
     return preferred
 
 
+def _community_conflict_outlook(indicator, series, forecast, same_month_history):
+    if not series:
+        return {
+            "score": 0,
+            "level": "Low",
+            "summary": "No trend data is available for a community conflict check.",
+            "drivers": [],
+            "actions": ["Collect recent ward-level pasture, water, and access data before making field interventions."],
+        }
+
+    values = [float(item["value"]) for item in series]
+    latest = values[-1]
+    previous = values[-2] if len(values) > 1 else latest
+    forecast_values = [float(v) for v in (forecast.get("next_3_months") or [])]
+    forecast_avg = sum(forecast_values) / len(forecast_values) if forecast_values else latest
+    baseline_avg = sum(values[:-1]) / max(len(values) - 1, 1) if len(values) > 1 else latest
+    same_month_avg = sum(float(item["value"]) for item in same_month_history) / max(len(same_month_history), 1) if same_month_history else baseline_avg
+
+    stress_component = max(0.0, 100.0 - latest)
+    trend_component = max(0.0, previous - latest) * 2.0
+    forecast_component = max(0.0, baseline_avg - forecast_avg) * 2.5
+    historical_component = max(0.0, same_month_avg - latest) * 1.2
+    score = round(min(100.0, stress_component + trend_component + forecast_component + historical_component), 1)
+
+    level = "Low"
+    if score >= 75:
+        level = "Critical"
+    elif score >= 55:
+        level = "High"
+    elif score >= 35:
+        level = "Moderate"
+
+    drivers = []
+    if latest < 50:
+        drivers.append("resource stress is elevated and grazing conditions are weak")
+    if previous > latest:
+        drivers.append("recent conditions are deteriorating from the previous month")
+    if forecast_avg < latest:
+        drivers.append("the next 3-month outlook is softer than the current level")
+    if same_month_history and latest < same_month_avg:
+        drivers.append("current conditions are below the same month in previous years")
+    if not drivers:
+        drivers.append("conditions are stable, but access and community tension should still be monitored")
+
+    actions = [
+        "review access routes, water points, and grazing overlap in the ward",
+        "prioritise community dialogue before tensions escalate around water or grazing",
+        "coordinate field checks and rapid-response monitoring for hotspots",
+    ]
+    summary = (
+        f"Community resource risk is {level.lower()} ({score}/100) in ward {indicator or 'this area'}. "
+        f"The current signal is below the recent baseline and the next 3 months are likely to sustain pressure, "
+        f"which raises the risk of grazing and water-related disputes if field teams do not intervene early."
+    )
+    return {
+        "score": score,
+        "level": level,
+        "summary": summary,
+        "drivers": drivers,
+        "actions": actions,
+    }
+
+
 def _build_management_report_prompt(indicator, ward_code, series, same_month_history, forecast, start_date, end_date, user_prompt=None):
     requested_focus = user_prompt.strip() if user_prompt else "Prepare a concise management briefing for this trend and forecast."
     indicator_label = "Pasture Health Index (0-100)" if indicator == "pasture_health" else indicator
@@ -339,8 +402,9 @@ def _build_management_report_prompt(indicator, ward_code, series, same_month_his
         "2. Trend Analysis\n"
         "3. Same-Month Comparison with Previous Years\n"
         "4. 3-Month Outlook\n"
-        "5. Risks and Confidence\n"
-        "6. Recommended Actions\n\n"
+        "5. Community and Conflict Outlook\n"
+        "6. Risks and Confidence\n"
+        "7. Recommended Actions\n\n"
         f"Requested focus: {requested_focus}\n"
         f"Indicator: {indicator_label}\n"
         f"Ward Code: {ward_code or 'all wards'}\n"
@@ -352,15 +416,19 @@ def _build_management_report_prompt(indicator, ward_code, series, same_month_his
         "- Keep it factual and grounded in the numbers supplied.\n"
         "- Highlight whether the current period is above or below the same month in previous years.\n"
         "- Include a short forecast narrative for the next 3 months.\n"
+        "- Assess the community and conflict outlook: identify resource pressure, access bottlenecks, and likely tension hotspots, especially where pasture or water stress is worsening.\n"
         "- State assumptions clearly, especially if the dataset is short or seasonal.\n"
         "- For pasture health, interpret the score as a grazing-condition indicator and mention stress risks, recovery potential, and management implications.\n"
-        "- End with brief management recommendations."
+        "- End with brief management recommendations focused on preventing resource feuds."
     )
 
 
 def _generate_trend_report(indicator, ward_code, series, forecast, start_date, end_date, chart_svg_data_uri, model_name=None, user_prompt=None):
     resolved_model = _resolve_openrouter_model(model_name)
     indicator_label = "Pasture Health" if indicator == "pasture_health" else indicator.replace("_", " ").title()
+    latest_month = series[-1]["month"] if series else None
+    same_month_history = _same_month_history(series, latest_month) if latest_month else []
+    outlook = _community_conflict_outlook(indicator, series, forecast, same_month_history)
     if not os.environ.get("OPENROUTER_API_KEY"):
         current = series[-1]["value"] if series else None
         current_month = series[-1]["month"] if series else "n/a"
@@ -378,9 +446,13 @@ def _generate_trend_report(indicator, ward_code, series, forecast, start_date, e
             f"The dataset spans {len(series)} monthly observations, with the most recent values showing the latest direction of change in the selected ward.\n\n"
             f"### 3-Month Outlook\n"
             f"The seasonal forecast indicates the next 3 months are likely to track around {next_3 if next_3 else 'the current trend'}. This supports a cautious but practical planning stance.\n\n"
+            f"### Community and Conflict Outlook\n"
+            f"{outlook['summary']}\n"
+            f"**Risk level:** {outlook['level']} ({outlook['score']}/100)\n"
+            f"**Likely pressure points:** {', '.join(outlook['drivers'])}\n\n"
             f"### Recommended Actions\n"
             f"- Monitor grazing pressure and field conditions closely if the indicator remains below 50.\n"
-            f"- Prioritise field checks where rainfall shortfalls or vegetation stress are concentrated.\n"
+            f"- Prioritise community dialogue, access-route checks, and water allocation planning where conflict risk is elevated.\n"
             f"- Adjust stocking, pasture rotation, or intervention timing according to the expected 3-month trend."
         )
         if user_prompt:
@@ -503,6 +575,7 @@ def trend_report_poc(request):
 
     latest_month = series[-1]["month"] if series else None
     same_month_history = _same_month_history(series, latest_month) if latest_month else []
+    community_conflict_outlook = _community_conflict_outlook(indicator_key, series, forecast, same_month_history)
 
     return JsonResponse({
         "indicator": indicator_key,
@@ -519,6 +592,7 @@ def trend_report_poc(request):
         "same_month_history": same_month_history,
         "forecast": forecast,
         "chart": chart,
+        "community_conflict_outlook": community_conflict_outlook,
         "management_report": report,
     })
 

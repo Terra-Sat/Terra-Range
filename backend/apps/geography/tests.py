@@ -79,6 +79,7 @@ class TrendReportContractTests(SimpleTestCase):
         self.assertEqual(body["model_used"], "openai/gpt-4o-mini")
         self.assertIn("openai/gpt-4o-mini", body["available_models"])
         self.assertIn("chart", body)
+        self.assertIn("community_conflict_outlook", body)
         self.assertIn("management_report", body)
 
     def test_pasture_health_indicator_uses_composite_series(self):

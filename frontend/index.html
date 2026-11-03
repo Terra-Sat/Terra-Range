@@ -964,12 +964,12 @@
 
       /* ---------- Configuration ---------- */
       const CFG = {
-        source: "api", // 'api' = Django endpoints (needed for indicators), 'static' = data/*.geojson
+        source: "api", // 'api' = Django endpoints (needed for indicators), 'static' = GeoJSON files served by the app
         api: "/api/v1/boundaries/", // returns normalised code / name / parent_code / area_km2
         waterApi: "/api/v1/water/points/",
-        staticDir: "data/",
-        // If the API call for boundaries fails, try data/<level>.geojson before giving up.
-        // Indicators still need the API, so they are disabled in fallback mode.
+        // The project currently serves the authoritative boundary data from the Django API.
+        // Static fallback paths are only used as a last resort and must point at a file actually available to the browser.
+        staticDir: "/data/",
         staticFallback: true,
         fetchTimeoutMs: 20000,
         expected: { counties: 1, constituencies: 4, wards: 20 },
@@ -1046,6 +1046,7 @@
         constFocus: "",
         water: [],
         waterVisible: true,
+        conflictLayerVisible: true,
         wardStats: {},
         climate: null,
         basemap: CFG.basemap,
@@ -1109,10 +1110,12 @@
         const delta = latest && prev ? Number(latest.value) - Number(prev.value) : null;
         const forecastAvg = forecast.length ? forecast.reduce((sum, v) => sum + Number(v), 0) / forecast.length : null;
         const status = getReportStatus(score);
+        const conflict = body?.community_conflict_outlook || null;
         const title = body?.indicator === "pasture_health" ? "Pasture Health Report" : "Trend Report";
         const ward = body?.ward_code ? body.ward_code : "All wards";
         const trendText = delta == null ? "n/a" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}`;
         const outlookText = forecastAvg == null ? "n/a" : `${forecastAvg.toFixed(1)} next 3 mo`;
+        const conflictText = conflict && Number.isFinite(Number(conflict.score)) ? `${conflict.level} (${Number(conflict.score).toFixed(1)})` : "n/a";
         return {
           title,
           ward,
@@ -1120,6 +1123,8 @@
           status,
           trendText,
           outlookText,
+          conflict,
+          conflictText,
         };
       }
 
@@ -1208,6 +1213,11 @@
               <span class="report-kpi-value">${escapeHtml(summary.outlookText)}</span>
               <span class="report-kpi-sub">3-month forecast</span>
             </div>
+            <div class="report-kpi">
+              <span class="report-kpi-label">Conflict risk</span>
+              <span class="report-kpi-value">${escapeHtml(summary.conflictText)}</span>
+              <span class="report-kpi-sub">${summary.conflict ? escapeHtml(summary.conflict.level + " outlook") : "Community risk"}</span>
+            </div>
           </div>
         `;
         return banner;
@@ -1243,6 +1253,7 @@
           const body = await response.json();
           const chart = body.chart || {};
           const report = body.management_report || "No report returned.";
+          window.__terraConflictOutlook = body.community_conflict_outlook || null;
 
           $("reportChatStatus").textContent = `Report ready using ${body.model_used || model}.`;
           if (chart.svg_data_uri) {
@@ -1437,7 +1448,9 @@
         }
       }
 
-      const exportReportChartPng = exportReportPdf;
+      function exportReportChartPng() {
+        return exportReportPdf();
+      }
 
       $("reportGenerate").addEventListener("click", generateTrendReport);
       $("reportExportPng").addEventListener("click", exportReportPdf);
@@ -1603,10 +1616,32 @@
         return b;
       }
       async function fetchLevel(level, source) {
-        const url = source === "api" ? `${CFG.api}${level}/` : `${CFG.staticDir}${level}.geojson`;
-        const feats = asFeatures(await getJSON(url));
-        if (!feats) throw new Error(`${url} did not return GeoJSON features`);
-        return feats;
+        if (source === "api") {
+          const url = `${CFG.api}${level}/`;
+          const feats = asFeatures(await getJSON(url));
+          if (!feats) throw new Error(`${url} did not return GeoJSON features`);
+          return feats;
+        }
+
+        const urls = [
+          `${CFG.staticDir}${level}.geojson`,
+          `/backend/data/${level}.geojson`,
+          `/static/${level}.geojson`,
+          `/static/data/${level}.geojson`,
+        ];
+        let lastError = null;
+        for (const url of urls) {
+          try {
+            const feats = asFeatures(await getJSON(url));
+            if (feats) return feats;
+            lastError = new Error(`${url} did not return GeoJSON features`);
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw new Error(
+          `No static GeoJSON file was available for ${level}. Tried: ${urls.join(", ")}. Use the API source or serve the boundary file in one of those locations.`,
+        );
       }
       async function load(level) {
         let feats;
@@ -1785,9 +1820,9 @@
       function setHover(id) {
         const cur = S.hover;
         if (cur && cur.id === id && cur.level === S.level) return;
-        if (cur) map.setFeatureState({ source: cur.level, id: cur.id }, { hover: false });
+        if (cur && mapReady) map.setFeatureState({ source: cur.level, id: cur.id }, { hover: false });
         S.hover = id != null ? { level: S.level, id } : null;
-        if (id != null) map.setFeatureState({ source: S.level, id }, { hover: true });
+        if (id != null && mapReady) map.setFeatureState({ source: S.level, id }, { hover: true });
       }
       /* Base styling by level role; paintIndicator() then overlays indicator colours when one is selected. */
       function restyle() {
@@ -1869,8 +1904,8 @@
       function select(level, id) {
         dropSel();
         S.sel = { level, id };
-        map.setFeatureState({ source: level, id }, { sel: true });
-        fitBox(S.feats[level][id].n.bbox);
+        if (mapReady) map.setFeatureState({ source: level, id }, { sel: true });
+        if (mapReady) fitBox(S.feats[level][id].n.bbox);
         renderCard();
         renderList();
         trend();
@@ -1926,6 +1961,31 @@
             ul.appendChild(li);
           });
       }
+      function getWardConflictOutlook(code) {
+        const D = cur();
+        if (!D) return null;
+        const series = seriesFor("wards", code).filter((v) => v != null);
+        if (series.length < 2) return null;
+        const latest = Number(series[series.length - 1]);
+        const prev = Number(series[series.length - 2]);
+        const recentWindow = series.slice(-6);
+        const base = recentWindow.reduce((sum, v) => sum + Number(v), 0) / recentWindow.length;
+        const deterioration = Math.max(0, prev - latest);
+        const stress = Math.max(0, 100 - latest);
+        const pressure = Math.max(0, base - latest);
+        const score = Math.min(100, Math.round((stress * 0.5) + (deterioration * 1.8) + (pressure * 0.8) + (latest < 50 ? 15 : 0)));
+        let level = "Low";
+        if (score >= 75) level = "Critical";
+        else if (score >= 55) level = "High";
+        else if (score >= 35) level = "Moderate";
+        const summary = latest < 50
+          ? "Water and grazing stress are elevated, so resource overlap and community tension risk should be monitored closely."
+          : deterioration > 0
+            ? "Conditions are weakening from the prior period and the risk of resource competition is increasing."
+            : "Conditions are broadly stable, though access and water-sharing tensions still warrant routine monitoring.";
+        return { score, level, summary };
+      }
+
       function renderCard() {
         const { level, id } = S.sel,
           f = S.feats[level][id],
@@ -1992,6 +2052,21 @@
           if (html) {
             sec.innerHTML = html;
             c.appendChild(sec);
+          }
+
+          const conflict = getWardConflictOutlook(f.n.code);
+          if (conflict) {
+            const risk = document.createElement("div");
+            risk.className = "card-sec";
+            risk.innerHTML = `
+              <h4>Community & Conflict Outlook</h4>
+              <div class="card-metrics">
+                <div><strong>Risk score</strong>${conflict.score}/100</div>
+                <div><strong>Level</strong>${conflict.level}</div>
+              </div>
+              <p style="margin:8px 0 0;color:var(--muted);">${escapeHtml(conflict.summary)}</p>
+            `;
+            c.appendChild(risk);
           }
         }
 
@@ -2223,6 +2298,15 @@
         const v = ["coalesce", ["feature-state", "val"], -9999];
         return ["case", ["<", v, -9000], NODATA, ["interpolate", ["linear"], v, ...IND[id].stops.flat()]];
       };
+      const conflictColorAt = (score) => {
+        if (score == null || Number.isNaN(Number(score))) return "#dfe7e0";
+        const s = Number(score);
+        if (s >= 75) return "#7f1d1d";
+        if (s >= 55) return "#ea580c";
+        if (s >= 35) return "#fbbf24";
+        if (s >= 20) return "#a3e635";
+        return "#4ade80";
+      };
       const fmt = (id, v) => (v == null ? "n/a" : v.toFixed(IND[id].dec));
       const klass = (id, v) => {
         const c = IND[id].classes;
@@ -2269,16 +2353,91 @@
         acc.forEach((a, k) => m.set(k, { v: a.w ? a.s / a.w : null, cov: a.t ? a.w / a.t : 0 }));
         return m;
       }
-      const seriesFor = (level, code) =>
-        cur().periods.map((_, p) => {
+      const seriesFor = (level, code) => {
+        const D = cur();
+        if (!D) return [];
+        return D.periods.map((_, p) => {
           const o = valsAt(level, p).get(code);
           return o ? o.v : null;
         });
+      };
+
+      function getWardConflictRisk(code) {
+        const series = seriesFor("wards", code).filter((v) => v != null);
+        if (series.length < 2) return null;
+        const latest = Number(series[series.length - 1]);
+        const prev = Number(series[series.length - 2]);
+        const recentWindow = series.slice(-6);
+        const base = recentWindow.reduce((sum, v) => sum + Number(v), 0) / recentWindow.length;
+        const deterioration = Math.max(0, prev - latest);
+        const stress = Math.max(0, 100 - latest);
+        const pressure = Math.max(0, base - latest);
+        const score = Math.min(100, Math.round((stress * 0.5) + (deterioration * 1.8) + (pressure * 0.8) + (latest < 50 ? 15 : 0)));
+
+        let level = "Low";
+        if (score >= 75) level = "Critical";
+        else if (score >= 55) level = "High";
+        else if (score >= 35) level = "Moderate";
+
+        return { score, level, color: conflictColorAt(score) };
+      }
+
+      function paintConflictLayer() {
+        if (!mapReady || !S.conflictLayerVisible) {
+          if (mapReady && map.getLayer("wards-fill")) {
+            map.setPaintProperty("wards-fill", "fill-opacity", 0.1);
+          }
+          return;
+        }
+
+        if (!S.feats.wards || !S.feats.wards.length || !cur()) return;
+        S.feats.wards.forEach((f) => {
+          const risk = getWardConflictRisk(f.n.code);
+          map.setFeatureState({ source: "wards", id: f.id }, { risk: risk ? risk.score : null });
+        });
+
+        const riskExpr = [
+          "case",
+          ["==", ["feature-state", "risk"], null], "#dfe7e0",
+          ["<", ["feature-state", "risk"], 20], "#4ade80",
+          ["<", ["feature-state", "risk"], 35], "#a3e635",
+          ["<", ["feature-state", "risk"], 55], "#fbbf24",
+          ["<", ["feature-state", "risk"], 75], "#ea580c",
+          "#7f1d1d",
+        ];
+
+        map.setPaintProperty("wards-fill", "fill-color", riskExpr);
+        map.setPaintProperty("wards-fill", "fill-opacity", [
+          "case",
+          ["boolean", ["feature-state", "sel"], false], 0.78,
+          ["boolean", ["feature-state", "hover"], false], 0.76,
+          ["boolean", ["feature-state", "dim"], false], 0.12,
+          0.68,
+        ]);
+        map.setPaintProperty("wards-line", "line-color", [
+          "case",
+          ["==", ["feature-state", "risk"], null], "#4b5563",
+          ["<", ["feature-state", "risk"], 35], "#166534",
+          ["<", ["feature-state", "risk"], 55], "#854d0e",
+          ["<", ["feature-state", "risk"], 75], "#9a4d00",
+          "#7f1d1d",
+        ]);
+        map.setPaintProperty("wards-line", "line-width", [
+          "case",
+          ["boolean", ["feature-state", "sel"], false], 2.2,
+          ["boolean", ["feature-state", "hover"], false], 1.8,
+          1.2,
+        ]);
+      }
 
       /* ---------- indicator map paint ---------- */
       function paintIndicator() {
         if (!mapReady) return;
         const on = X.ind && cur();
+        if (S.conflictLayerVisible && S.level === "wards") {
+          paintConflictLayer();
+          return;
+        }
         LV.forEach((l) =>
           map.setPaintProperty(l.id + "-fill", "fill-color", on && l.id === S.level ? mapExpr(X.ind) : l.color),
         );
@@ -2307,7 +2466,12 @@
     <select id="indSel" aria-label="Indicator"><option value="">Boundaries only</option>${Object.entries(groups)
       .map(([g, o]) => `<optgroup label="${g}">${o.join("")}</optgroup>`)
       .join("")}</select>
-    <p id="indNote" style="font-size:13px;color:var(--muted);margin:0 0 8px"></p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 6px">
+      <p id="indNote" style="font-size:13px;color:var(--muted);margin:0;flex:1"></p>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:0;white-space:nowrap">
+        <input id="conflictToggle" type="checkbox" checked /> Conflict layer
+      </label>
+    </div>
     <div id="indCtl" hidden><input type="range" id="indT" min="0" max="0" value="0" aria-label="Period">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><b id="indDate"></b>
       <span><button id="play" class="mini" type="button">Play</button> <button id="latest" class="mini" type="button">Latest</button></span></div>
@@ -2320,6 +2484,10 @@
     <div><div class="dh"><h2>Heatmap: wards over time</h2><small id="hmI" style="color:var(--muted)"></small></div><div class="cv"><canvas id="hm"></canvas></div></div>`;
         if (hasChart()) Chart.defaults.font.family = '"Atkinson Hyperlegible",system-ui,sans-serif';
         $("indSel").onchange = (e) => setInd(e.target.value);
+        $("conflictToggle").onchange = (e) => {
+          S.conflictLayerVisible = !!e.target.checked;
+          refresh();
+        };
         $("indT").oninput = (e) => {
           X.p = +e.target.value;
           refresh();
@@ -2703,19 +2871,29 @@
           await mapP;
         } catch (e) {
           console.error(e);
-          showError(`The map could not start: ${e.message}. WebGL may be unavailable in this browser.`);
-          return;
+          showError(
+            `The map could not start: ${e.message}. WebGL may be unavailable in this browser. Boundary data is still loaded, and the dashboard is continuing in non-map mode.`,
+          );
+          showNote("Map rendering is unavailable in this browser; the report and ward card remain usable.");
         }
         loadWaterPoints(); /* independent of boundaries; failures are handled inside */
         if (!data) return;
-        LV.forEach((l) => map.getSource(l.id).setData(data[l.id]));
+        if (mapReady) {
+          LV.forEach((l) => map.getSource(l.id).setData(data[l.id]));
+        }
         dataReady = true;
         if (S.dataSource !== CFG.source) showNote("Boundary API unavailable, showing static files. Indicators are disabled.");
         runChecks();
-        restyle();
-        applyScope();
+        if (mapReady) {
+          restyle();
+          applyScope();
+        }
         render();
-        fitAll();
+        if (!S.sel && S.feats.wards.length) {
+          const firstWard = S.feats.wards[0];
+          select("wards", firstWard.id);
+        }
+        if (mapReady) fitAll();
         onMapReady();
       }
       applyTheme(root.dataset.theme || "light", false);
