@@ -28,15 +28,15 @@ Run `python manage.py expire_consents` on a schedule (for example hourly) to exp
 - MESSAGING_SMS_PROVIDER: `fake` (default) or `africastalking`. Set it to `africastalking` in any real deployment.
 - MESSAGING_CONSENT_POLICY_VERSION: version recorded with each consent (default `v1`). Change it when the consent wording changes.
 - MESSAGING_CONSENT_PENDING_TTL_HOURS: hours a YES is accepted after JOIN (default 72).
-- AT_USERNAME: `sandbox` for the sandbox, otherwise your app username.
+- AT_USERNAME: your live Africa's Talking app username. Do not leave it as the sandbox value in production.
 - AT_API_KEY: Africa's Talking API key. Never commit it.
-- AT_BASE_URL: `https://api.sandbox.africastalking.com` (default) or `https://api.africastalking.com` for production.
+- AT_BASE_URL: live production endpoint is `https://api.africastalking.com`; sandbox is only for testing.
 - AT_SENDER_ID: optional sender ID or shortcode.
 - AT_WEBHOOK_TOKEN: long random secret used in the callback URLs. If empty, all webhooks are rejected.
 
 ## Africa's Talking setup
-1. Create a sandbox app and API key in the Africa's Talking dashboard.
-2. Set the env vars above, with `MESSAGING_SMS_PROVIDER=africastalking`.
+1. Create the production app and API key in the Africa's Talking dashboard.
+2. Set the env vars above, with `MESSAGING_SMS_PROVIDER=africastalking` and `AT_BASE_URL=https://api.africastalking.com`.
 3. Expose your server (for local work, a tunnel such as ngrok) and set the SMS callback URLs to:
    - Incoming messages: `https://<host>/api/v1/messaging/webhooks/africastalking/<AT_WEBHOOK_TOKEN>/inbound/`
    - Delivery reports: `https://<host>/api/v1/messaging/webhooks/africastalking/<AT_WEBHOOK_TOKEN>/delivery/`

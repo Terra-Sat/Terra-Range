@@ -74,14 +74,21 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR.parent / "frontend"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- Messaging (SMS) ---
 MESSAGING_SMS_PROVIDER = env("MESSAGING_SMS_PROVIDER", default="fake")  # "fake" or "africastalking"
 MESSAGING_CONSENT_POLICY_VERSION = env("MESSAGING_CONSENT_POLICY_VERSION", default="v1")
 MESSAGING_CONSENT_PENDING_TTL_HOURS = env.int("MESSAGING_CONSENT_PENDING_TTL_HOURS", default=72)
-AT_USERNAME = env("AT_USERNAME", default="sandbox")
+AT_USERNAME = env("AT_USERNAME", default="")
 AT_API_KEY = env("AT_API_KEY", default="")
-AT_BASE_URL = env("AT_BASE_URL", default="https://api.sandbox.africastalking.com")
+AT_BASE_URL = env("AT_BASE_URL", default="https://api.africastalking.com")
 AT_SENDER_ID = env("AT_SENDER_ID", default="")
 AT_WEBHOOK_TOKEN = env("AT_WEBHOOK_TOKEN", default="")
+
+META_WHATSAPP_API_VERSION = env("META_WHATSAPP_API_VERSION", default="v20.0")
+META_WHATSAPP_PHONE_NUMBER_ID = env("META_WHATSAPP_PHONE_NUMBER_ID", default="")
+META_WHATSAPP_ACCESS_TOKEN = env("META_WHATSAPP_ACCESS_TOKEN", default="")
+META_WHATSAPP_APP_SECRET = env("META_WHATSAPP_APP_SECRET", default="")
+META_WHATSAPP_VERIFY_TOKEN = env("META_WHATSAPP_VERIFY_TOKEN", default="")

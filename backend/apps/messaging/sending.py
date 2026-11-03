@@ -9,7 +9,7 @@ from apps.messaging.enums import Channel, DeliveryStatus, MessageClass, Purpose
 from apps.messaging.messages import render
 from apps.messaging.models import OutboundLog
 from apps.messaging.providers.base import SendRequest, SendResult
-from apps.messaging.providers.registry import get_sms_provider
+from apps.messaging.providers.registry import get_sms_provider, get_whatsapp_provider
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +42,29 @@ def send_transactional(*, purpose, phone, recipient=None, language="en") -> Send
     )
 
 
-def _dispatch(*, recipient, phone, body, message_class, purpose, reference) -> SendOutcome:
-    provider = get_sms_provider()
+def send_whatsapp(recipient, body, *, reference="") -> SendOutcome:
+    """Send an outbound WhatsApp message when the recipient has WA consent."""
+    decision = can_send(recipient, Channel.WHATSAPP, MessageClass.ADVISORY)
+    if not decision.allowed:
+        logger.info("whatsapp advisory suppressed reason=%s recipient=%s", decision.reason, recipient.id)
+        return SendOutcome(False, reason=decision.reason)
+    return _dispatch(
+        recipient=recipient,
+        phone=recipient.phone,
+        body=body,
+        message_class=MessageClass.ADVISORY,
+        purpose=Purpose.ADVISORY,
+        reference=reference,
+        channel=Channel.WHATSAPP,
+    )
+
+
+def _dispatch(*, recipient, phone, body, message_class, purpose, reference, channel=Channel.SMS) -> SendOutcome:
+    provider = get_sms_provider() if channel == Channel.SMS else get_whatsapp_provider()
     try:
         result = provider.send(SendRequest(to=phone, body=body, reference=reference))
     except Exception as exc:
-        logger.error("sms provider raised %s", type(exc).__name__)  # class only: no message, no traceback
+        logger.error("%s provider raised %s", channel.value, type(exc).__name__)
         result = SendResult(False, error_code="provider_exception", retryable=True)
     log = OutboundLog.objects.create(
         provider=provider.name,
@@ -60,5 +77,5 @@ def _dispatch(*, recipient, phone, body, message_class, purpose, reference) -> S
         error_code=result.error_code,
     )
     if not result.accepted:
-        logger.warning("sms send failed code=%s retryable=%s to=%s", result.error_code, result.retryable, mask_phone(phone))
+        logger.warning("%s send failed code=%s retryable=%s to=%s", channel.value, result.error_code, result.retryable, mask_phone(phone))
     return SendOutcome(result.accepted, reason=result.error_code or "submitted", retryable=result.retryable, log_id=log.id)
