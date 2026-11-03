@@ -51,7 +51,8 @@
       * { box-sizing: border-box; }
       html { height: 100%; }
       body {
-        height: 100%;
+        height: 100vh;
+        min-height: 100vh;
         margin: 0;
         background: var(--paper);
         color: var(--ink);
@@ -135,10 +136,12 @@
       main {
         position: relative;
         min-height: 0;
+        height: 100vh;
         display: grid;
         grid-template-rows: auto minmax(0, 1fr) auto;
       }
-      #map { position: absolute; inset: 0; }
+      #mapwrap { grid-row: 2; position: relative; min-height: 0; height: 100%; }
+      #map { position: absolute; inset: 0; width: 100%; height: 100%; }
       #crumbs {
         position: absolute;
         top: 12px;
@@ -165,7 +168,9 @@
         position: absolute;
         right: 12px;
         bottom: 28px;
-        width: 290px;
+        width: 310px;
+        max-height: 480px;
+        overflow-y: auto;
         z-index: 2;
         background: var(--surface);
         color: var(--ink);
@@ -173,6 +178,55 @@
         border-radius: 10px;
         padding: 14px 16px;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      }
+      .card-sec {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+      .card-sec h4 {
+        margin: 0 0 6px;
+        font-size: 11px;
+        text-transform: uppercase;
+        color: var(--muted);
+        letter-spacing: 0.05em;
+      }
+      .card-metrics {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+      .card-metrics div {
+        background: var(--paper);
+        padding: 5px 7px;
+        border-radius: 6px;
+      }
+      .card-metrics strong { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; }
+      .lc-bar {
+        display: flex;
+        height: 10px;
+        border-radius: 5px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        margin: 6px 0;
+      }
+      .lc-bar > div { height: 100%; }
+      .lc-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .lc-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        margin-right: 3px;
+        vertical-align: middle;
       }
       #card[hidden] { display: none; }
       #card h3 { margin: 0; font-size: 17px; }
@@ -209,6 +263,274 @@
       #note { border-color: var(--warn); color: var(--warn); margin: 0 0 8px; }
       #err[hidden],
       #note[hidden] { display: none; }
+      #reportChatToggle {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        width: 60px;
+        height: 60px;
+        border: 2px solid rgba(255, 255, 255, 0.6);
+        border-radius: 50%;
+        background: linear-gradient(135deg, #7c3aed 0%, #22c55e 32%, #14b8a6 68%, #0ea5e9 100%);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        box-shadow: 0 16px 28px rgba(124, 58, 237, 0.38), 0 0 0 6px rgba(20, 184, 166, 0.12);
+        cursor: pointer;
+        z-index: 30;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+        background-size: 180% 180%;
+        animation: reportChatPulse 3.5s ease-in-out infinite;
+      }
+      #reportChatToggle:hover {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 20px 32px rgba(34, 197, 94, 0.28), 0 0 0 8px rgba(20, 184, 166, 0.14);
+        filter: saturate(1.15) brightness(1.04);
+      }
+      @keyframes reportChatPulse {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+      }
+      #reportChat {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        width: min(360px, calc(100vw - 36px));
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+        padding: 14px;
+        z-index: 25;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(12px) scale(0.98);
+        transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+      }
+      #reportChat.is-open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+      #reportChat .report-chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      #reportChat h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+      #reportChat .report-chat-close {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--paper);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 0;
+      }
+      #reportChat .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      #reportChat label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      #reportChat select,
+      #reportChat input,
+      #reportChat textarea,
+      #reportChat button {
+        width: 100%;
+        font: inherit;
+      }
+      #reportChat select,
+      #reportChat input,
+      #reportChat textarea {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        color: var(--ink);
+        padding: 8px 10px;
+      }
+      #reportChat textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+      #reportChat .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      #reportChat .actions button {
+        flex: 1;
+        cursor: pointer;
+      }
+      #reportChat .primary {
+        background: var(--lc);
+        color: #fff;
+        border: 1px solid var(--lc);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      #reportChat .secondary {
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      #reportChatStatus {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      #reportChartWrap {
+        margin-top: 14px;
+        display: none;
+      }
+      #reportChartWrap img {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        display: block;
+      }
+      .report-banner {
+        margin-top: 12px;
+        padding: 12px 12px 10px;
+        border: 1px solid rgba(31, 107, 115, 0.2);
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(31, 107, 115, 0.12), rgba(31, 107, 115, 0.04));
+      }
+      .report-banner-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .report-banner-title {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .report-status-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .report-status-healthy {
+        background: rgba(46, 125, 50, 0.12);
+        color: #1d7a35;
+      }
+      .report-status-stressed {
+        background: rgba(138, 90, 0, 0.12);
+        color: #8a5a00;
+      }
+      .report-status-critical {
+        background: rgba(192, 57, 43, 0.12);
+        color: #b3261e;
+      }
+      .report-banner-meta {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .report-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .report-kpi {
+        padding: 10px 10px 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+      .report-kpi-label {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .report-kpi-value {
+        display: block;
+        margin-top: 4px;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .report-kpi-sub {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      #reportMarkdown {
+        margin-top: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--paper);
+        font-size: 13px;
+        line-height: 1.55;
+        max-height: 320px;
+        overflow: auto;
+      }
+      #reportMarkdown > *:first-child { margin-top: 0; }
+      #reportMarkdown h1, #reportMarkdown h2, #reportMarkdown h3 {
+        margin: 0 0 8px;
+        line-height: 1.3;
+        color: var(--ink);
+      }
+      #reportMarkdown h1 { font-size: 17px; }
+      #reportMarkdown h2 { font-size: 15px; margin-top: 16px; }
+      #reportMarkdown h3 { font-size: 14px; margin-top: 14px; }
+      #reportMarkdown p, #reportMarkdown ul, #reportMarkdown ol, #reportMarkdown blockquote {
+        margin: 0 0 10px;
+      }
+      #reportMarkdown ul, #reportMarkdown ol {
+        padding-left: 18px;
+      }
+      #reportMarkdown li + li { margin-top: 4px; }
+      #reportMarkdown strong { color: var(--ink); }
+      #reportMarkdown blockquote {
+        padding: 8px 10px;
+        border-left: 3px solid var(--lc);
+        background: rgba(31, 107, 115, 0.08);
+        border-radius: 6px;
+      }
+      #reportMarkdown a {
+        color: var(--lc);
+        text-decoration: none;
+      }
+      #reportMarkdown img {
+        max-width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        margin-top: 10px;
+      }
       .maplibregl-popup-content {
         background: var(--surface);
         color: var(--ink);
@@ -233,14 +555,107 @@
       #mapwrap { grid-row: 2; position: relative; min-height: 0; }
       #dock {
         grid-row: 3;
-        height: 290px;
+        height: 300px;
         display: grid;
-        grid-template-columns: 1.2fr 1fr 1.4fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 1px;
         background: var(--line);
         border-top: 1px solid var(--line);
         min-height: 0;
       }
+      .dock-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--paper);
+        border-bottom: 1px solid var(--line);
+        padding: 4px 12px;
+      }
+      .dock-tabs {
+        display: flex;
+        gap: 6px;
+      }
+      .dock-tab {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .dock-tab.active {
+        background: var(--lc);
+        color: #fff;
+        border-color: var(--lc);
+      }
+      .dock-panels {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+      }
+      #dockIndPanel {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1.4fr;
+        gap: 1px;
+        background: var(--line);
+      }
+      #dockClimatePanel {
+        height: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.7fr;
+        gap: 1px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      #dockIndPanel > div, #dockClimatePanel > div {
+        background: var(--surface);
+        padding: 8px 12px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        min-width: 0;
+      }
+      .climate-val {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 6px 0 2px;
+      }
+      .climate-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+        width: fit-content;
+      }
+      .badge-warn { background: #ffeaa7; color: #d63031; }
+      .badge-ok { background: #dff9fb; color: #0984e3; }
+      .badge-neutral { background: var(--paper); color: var(--muted); }
+      .price-tbl-wrap {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        margin-top: 4px;
+      }
+      .price-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .price-table th, .price-table td {
+        padding: 5px 6px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+      }
+      .price-table th { color: var(--muted); font-size: 11px; }
+      .price-table td.num { text-align: right; font-weight: 700; }
       main.no-dock #dock { display: none; }
       #hm { position: absolute; left: 0; top: 0; }
       .kpi {
@@ -266,6 +681,7 @@
         flex-direction: column;
         min-height: 0;
         min-width: 0;
+        height: 100%;
       }
       .dh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
       .dh h2 { margin: 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -368,7 +784,7 @@
         aside { border-right: 0; }
         #card { width: auto; left: 12px; }
         #kpis { grid-template-columns: 1fr 1fr; }
-        #dock { grid-template-columns: 1fr; height: auto; }
+        #dock { grid-template-columns: 1fr; height: auto; background: transparent; border-top: 0; gap: 0; }
         #dock > div { height: 260px; }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -385,6 +801,10 @@
       </header>
       <section>
         <h2>Water access</h2>
+        <div class="seg" id="waterToggle" role="group" aria-label="Water points visibility">
+          <button type="button" id="waterBtnOff" aria-pressed="false" data-visible="false">Off</button>
+          <button type="button" id="waterBtnOn" aria-pressed="true" data-visible="true">On</button>
+        </div>
         <div id="waterSummary" aria-live="polite"></div>
       </section>
       <section>
@@ -449,6 +869,51 @@
       </div>
       <div id="dock"></div>
     </main>
+
+    <button id="reportChatToggle" type="button" aria-expanded="false" aria-controls="reportChat" title="Open assistant">AI</button>
+
+    <aside id="reportChat" aria-live="polite">
+      <div class="report-chat-header">
+        <h3>Trend report assistant</h3>
+        <button class="report-chat-close" id="reportChatClose" type="button" aria-label="Close report assistant">×</button>
+      </div>
+      <div class="row">
+        <div>
+          <label for="reportIndicator">Indicator</label>
+          <select id="reportIndicator">
+            <option value="pasture_health">Pasture Health</option>
+            <option value="ndvi">NDVI</option>
+            <option value="vci">VCI</option>
+            <option value="rainfall">Rainfall</option>
+          </select>
+        </div>
+        <div>
+          <label for="reportModel">Model</label>
+          <select id="reportModel">
+            <option value="openai/gpt-oss-20b">openai/gpt-oss-20b</option>
+            <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
+            <option value="google/gemini-2.0-flash-001">google/gemini-2.0-flash-001</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label for="reportWard">Ward code</label>
+        <input id="reportWard" type="text" placeholder="Optional ward code" />
+      </div>
+      <div style="margin-top:8px">
+        <label for="reportPrompt">What should the report explain?</label>
+        <textarea id="reportPrompt">Summarise the trend, same-month comparison, and the next 3 month risk outlook.</textarea>
+      </div>
+      <div class="actions">
+        <button class="primary" id="reportGenerate" type="button">Generate</button>
+        <button class="secondary" id="reportExportPng" type="button">Export PNG</button>
+      </div>
+      <div id="reportChatStatus">SVG-friendly output is generated for PDF/reporting and can be exported to PNG in-browser.</div>
+      <div id="reportChartWrap">
+        <img id="reportChartImage" alt="Trend chart" />
+      </div>
+      <div id="reportMarkdown"></div>
+    </aside>
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
@@ -542,13 +1007,249 @@
         hover: null,
         constFocus: "",
         water: [],
+        waterVisible: true,
+        wardStats: {},
+        climate: null,
         basemap: CFG.basemap,
         tileErrors: 0,
         dataSource: CFG.source,
       };
       const $ = (id) => document.getElementById(id);
-      const idx = (id) => LV.findIndex((l) => l.id === id);
       const root = document.documentElement;
+
+      function setReportChatOpen(open) {
+        const panel = $("reportChat");
+        const toggle = $("reportChatToggle");
+        if (!panel || !toggle) return;
+        panel.classList.toggle("is-open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.style.display = open ? "none" : "block";
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      const reportChatToggle = $("reportChatToggle");
+      const reportChatClose = $("reportChatClose");
+      if (reportChatToggle) {
+        reportChatToggle.addEventListener("click", () => setReportChatOpen(true));
+      }
+      if (reportChatClose) {
+        reportChatClose.addEventListener("click", () => setReportChatOpen(false));
+      }
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          setReportChatOpen(false);
+        }
+      });
+      setReportChatOpen(false);
+
+      function getReportStatus(score) {
+        if (score == null || Number.isNaN(Number(score))) return { label: "Stressed", className: "report-status-stressed" };
+        const val = Number(score);
+        if (val >= 60) return { label: "Healthy", className: "report-status-healthy" };
+        if (val >= 45) return { label: "Stressed", className: "report-status-stressed" };
+        return { label: "Critical", className: "report-status-critical" };
+      }
+
+      function formatReportSummary(body) {
+        const series = Array.isArray(body?.series) ? body.series : [];
+        const forecast = Array.isArray(body?.forecast?.next_3_months) ? body.forecast.next_3_months : [];
+        const latest = series.length ? series[series.length - 1] : null;
+        const prev = series.length > 1 ? series[series.length - 2] : null;
+        const score = latest ? Number(latest.value) : null;
+        const delta = latest && prev ? Number(latest.value) - Number(prev.value) : null;
+        const forecastAvg = forecast.length ? forecast.reduce((sum, v) => sum + Number(v), 0) / forecast.length : null;
+        const status = getReportStatus(score);
+        const title = body?.indicator === "pasture_health" ? "Pasture Health Report" : "Trend Report";
+        const ward = body?.ward_code ? body.ward_code : "All wards";
+        const trendText = delta == null ? "n/a" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}`;
+        const outlookText = forecastAvg == null ? "n/a" : `${forecastAvg.toFixed(1)} next 3 mo`;
+        return {
+          title,
+          ward,
+          score,
+          status,
+          trendText,
+          outlookText,
+        };
+      }
+
+      function renderMarkdown(md) {
+        if (!md) return "<p>No report available.</p>";
+
+        const safeMd = String(md).trim();
+        const blocks = safeMd.split(/\n{2,}/).filter(Boolean);
+
+        const renderInline = (text) => {
+          let out = escapeHtml(text);
+          out = out.replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+          out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+          out = out.replace(/\*(.+?)\*/g, "<em>$1</em>");
+          return out;
+        };
+
+        let html = "";
+        for (const block of blocks) {
+          const lines = block.split(/\n/).map((line) => line.trim()).filter(Boolean);
+          const first = lines[0] || "";
+
+          if (/^#{1,6}\s+/.test(first)) {
+            const m = first.match(/^(#{1,6})\s+(.*)$/);
+            const level = m[1].length;
+            const text = renderInline(m[2]);
+            html += `<h${level}>${text}</h${level}>`;
+            continue;
+          }
+
+          if (/^[-*]\s+/.test(first) || /^\d+\.\s+/.test(first)) {
+            const items = lines.map((line) => {
+              const clean = line.replace(/^[-*]\s+|^\d+\.\s+/, "");
+              return `<li>${renderInline(clean)}</li>`;
+            }).join("");
+            const listTag = /^\d+\.\s+/.test(first) ? "ol" : "ul";
+            html += `<${listTag}>${items}</${listTag}>`;
+            continue;
+          }
+
+          if (/^>\s+/.test(first)) {
+            const quote = lines.map((line) => renderInline(line.replace(/^>\s+/, ""))).join("<br>");
+            html += `<blockquote>${quote}</blockquote>`;
+            continue;
+          }
+
+          if (/^!\[.*?\]\((.+)\)$/.test(first)) {
+            const match = first.match(/^!\[.*?\]\((.+)\)$/);
+            if (match) {
+              html += `<img src="${escapeHtml(match[1])}" alt="Chart" />`;
+              continue;
+            }
+          }
+
+          const paragraph = lines.map((line) => renderInline(line)).join("<br>");
+          html += `<p>${paragraph}</p>`;
+        }
+
+        return html;
+      }
+
+      function renderReportSummary(body) {
+        const summary = formatReportSummary(body);
+        const scoreText = summary.score == null ? "n/a" : `${summary.score.toFixed(1)}`;
+        const banner = `
+          <div class="report-banner">
+            <div class="report-banner-header">
+              <div class="report-banner-title">${escapeHtml(summary.title)}</div>
+              <span class="report-status-pill ${summary.status.className}">${summary.status.label}</span>
+            </div>
+            <div class="report-banner-meta">Ward: ${escapeHtml(summary.ward)}</div>
+          </div>
+          <div class="report-kpis">
+            <div class="report-kpi">
+              <span class="report-kpi-label">Score</span>
+              <span class="report-kpi-value">${scoreText}</span>
+              <span class="report-kpi-sub">Latest value</span>
+            </div>
+            <div class="report-kpi">
+              <span class="report-kpi-label">Trend</span>
+              <span class="report-kpi-value">${escapeHtml(summary.trendText)}</span>
+              <span class="report-kpi-sub">vs prior month</span>
+            </div>
+            <div class="report-kpi">
+              <span class="report-kpi-label">Outlook</span>
+              <span class="report-kpi-value">${escapeHtml(summary.outlookText)}</span>
+              <span class="report-kpi-sub">3-month forecast</span>
+            </div>
+          </div>
+        `;
+        return banner;
+      }
+
+      async function generateTrendReport() {
+        const indicator = $("reportIndicator").value || "ndvi";
+        const wardCode = $("reportWard").value || "";
+        const model = $("reportModel").value || "openai/gpt-oss-20b";
+        const prompt = $("reportPrompt").value || "Summarise the trend and forecast.";
+        const end = new Date();
+        const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
+
+        $("reportChatStatus").textContent = `Generating ${indicator.toUpperCase()} report with ${model}...`;
+        try {
+          const response = await fetch("/api/v1/boundaries/trend-report-chat/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": document.cookie.split("; ").find((c) => c.startsWith("csrftoken="))?.split("=")[1] || "" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              indicator,
+              ward_code: wardCode,
+              start_date: start.toISOString().slice(0, 10),
+              end_date: end.toISOString().slice(0, 10),
+              months: 12,
+              model,
+              prompt,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`Report generation failed (${response.status})`);
+          }
+          const body = await response.json();
+          const chart = body.chart || {};
+          const report = body.management_report || "No report returned.";
+
+          $("reportChatStatus").textContent = `Report ready using ${body.model_used || model}.`;
+          if (chart.svg_data_uri) {
+            $("reportChartImage").src = chart.svg_data_uri;
+            $("reportChartWrap").style.display = "block";
+          }
+          $("reportMarkdown").innerHTML = `${renderReportSummary(body)}${renderMarkdown(report)}`;
+          window.__terraReportChartSvg = chart.svg || "";
+        } catch (err) {
+          $("reportChatStatus").textContent = err.message || "Unable to generate the report right now.";
+        }
+      }
+
+      async function exportReportChartPng() {
+        const svgText = window.__terraReportChartSvg;
+        if (!svgText) {
+          $("reportChatStatus").textContent = "Generate a report first so the chart is available for export.";
+          return;
+        }
+        try {
+          const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const image = new Image();
+          image.onload = function () {
+            const canvas = document.createElement("canvas");
+            canvas.width = 1200;
+            canvas.height = 520;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const pngUrl = canvas.toDataURL("image/png");
+            const a = document.createElement("a");
+            a.href = pngUrl;
+            a.download = "terra-range-trend-report.png";
+            a.click();
+            URL.revokeObjectURL(url);
+            $("reportChatStatus").textContent = "PNG export started.";
+          };
+          image.src = url;
+        } catch (err) {
+          $("reportChatStatus").textContent = "PNG export is unavailable in this browser.";
+        }
+      }
+
+      $("reportGenerate").addEventListener("click", generateTrendReport);
+      $("reportExportPng").addEventListener("click", exportReportChartPng);
+
+      const idx = (id) => LV.findIndex((l) => l.id === id);
       const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
       const isDark = () => root.dataset.theme === "dark";
       const safeGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -623,6 +1324,20 @@
         renderWaterSummary(S.water);
         addWaterPointsLayer();
       }
+      function setWaterPointsVisible(visible) {
+        S.waterVisible = !!visible;
+        ["waterBtnOff", "waterBtnOn"].forEach((id) => {
+          const btn = $(id);
+          if (btn) btn.setAttribute("aria-pressed", String(id === (visible ? "waterBtnOn" : "waterBtnOff")));
+        });
+        if (!styleReady || !map) return;
+        ["waterpoints", "waterpoints-labels"].forEach((id) => {
+          if (map.getLayer(id)) {
+            map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+          }
+        });
+      }
+
       function addWaterPointsLayer() {
         if (!styleReady) return; /* the map 'load' handler calls this again once the style is ready */
         const data = { type: "FeatureCollection", features: S.water };
@@ -632,6 +1347,7 @@
           id: "waterpoints",
           type: "circle",
           source: "waterpoints",
+          layout: { visibility: S.waterVisible ? "visible" : "none" },
           paint: {
             "circle-radius": ["case", ["==", ["get", "status"], "verified"], 6, ["==", ["get", "status"], "reported"], 5, 4],
             "circle-color": [
@@ -652,6 +1368,7 @@
             source: "waterpoints",
             minzoom: 8,
             layout: {
+              visibility: S.waterVisible ? "visible" : "none",
               "text-field": ["coalesce", ["get", "name"], "Water point"],
               "text-font": CFG.labelFont,
               "text-size": 10,
@@ -661,6 +1378,7 @@
             paint: { "text-color": "#223344", "text-halo-color": "#ffffff", "text-halo-width": 1 },
           });
         }
+        setWaterPointsVisible(S.waterVisible);
       }
 
       /* ---------- Boundary data ---------- */
@@ -1023,11 +1741,66 @@
         const kids = i < 2 ? S.feats[LV[i + 1].id].filter((k) => k.n.parent === f.n.code) : [];
         const c = $("card");
         c.hidden = false;
-        c.innerHTML = `<h3></h3><dl><dt>Level</dt><dd>${lv.label}</dd><dt>Code</dt><dd></dd>${p ? "<dt>Within</dt><dd></dd>" : ""}<dt>Area</dt><dd>${Math.round(f.n.area).toLocaleString()} km²${f.n.approx ? " (approx.)" : ""}</dd>${i < 2 ? `<dt>Contains</dt><dd>${kids.length} ${LV[i + 1].plural}</dd>` : ""}</dl><div class="row"></div>`;
+
+        let indRow = "";
+        if (X.ind && cur()) {
+          const D = cur(), val = D.mat[id] ? D.mat[id][X.p] : null;
+          const k = klass(X.ind, val);
+          const valTxt = fmt(X.ind, val) + (k ? ` (${k})` : "");
+          indRow = `<dt>${esc(IND[X.ind].label)}</dt><dd><b>${valTxt}</b></dd>`;
+        }
+
+        c.innerHTML = `<h3></h3><dl><dt>Level</dt><dd>${lv.label}</dd><dt>Code</dt><dd></dd>${p ? "<dt>Within</dt><dd></dd>" : ""}<dt>Area</dt><dd>${Math.round(f.n.area).toLocaleString()} km²${f.n.approx ? " (approx.)" : ""}</dd>${indRow}${i < 2 ? `<dt>Contains</dt><dd>${kids.length} ${LV[i + 1].plural}</dd>` : ""}</dl><div class="row"></div>`;
         c.querySelector("h3").textContent = f.n.name;
         const dds = c.querySelectorAll("dd");
         dds[1].textContent = f.n.code || "n/a";
         if (p) dds[2].textContent = p.n.name;
+
+        // Static baseline profile for wards
+        if (level === "wards") {
+          const ws = S.wardStats[f.n.code] || {};
+          const sec = document.createElement("div");
+          sec.className = "card-sec";
+          
+          let metrics = "";
+          if (ws.pop_2020 != null) metrics += `<div><strong>Population (2020)</strong>${Math.round(ws.pop_2020).toLocaleString()}</div>`;
+          if (ws.pop_within_5km_pct != null) metrics += `<div><strong>Within 5km Water</strong>${ws.pop_within_5km_pct}%</div>`;
+          if (ws.elevation != null) metrics += `<div><strong>Mean Elevation</strong>${Math.round(ws.elevation)} m</div>`;
+          if (ws.slope != null) metrics += `<div><strong>Mean Slope</strong>${ws.slope.toFixed(1)}°</div>`;
+          if (ws.water_seasonal_km2 != null) metrics += `<div><strong>Seasonal Water</strong>${ws.water_seasonal_km2} km²</div>`;
+          
+          let html = "";
+          if (metrics) {
+            html += `<h4>Landscape & Population</h4><div class="card-metrics">${metrics}</div>`;
+          }
+          
+          // ESA WorldCover Land Cover distribution
+          const shrub = ws.worldcover_20_pct || 0;
+          const grass = ws.worldcover_30_pct || 0;
+          const bare = ws.worldcover_60_pct || 0;
+          const tree = ws.worldcover_10_pct || 0;
+          const crop = ws.worldcover_40_pct || 0;
+          if (shrub || grass || bare || tree || crop) {
+            html += `<h4>Land Cover (ESA WorldCover)</h4>
+              <div class="lc-bar" title="Shrub: ${shrub}%, Grass: ${grass}%, Bare: ${bare}%">
+                <div style="width:${shrub}%;background:#bfa87a;" title="Shrub: ${shrub}%"></div>
+                <div style="width:${grass}%;background:#78c679;" title="Grass: ${grass}%"></div>
+                <div style="width:${bare}%;background:#d9d0c1;" title="Bare: ${bare}%"></div>
+                <div style="width:${tree}%;background:#238b45;" title="Tree: ${tree}%"></div>
+                <div style="width:${crop}%;background:#fe9929;" title="Crop: ${crop}%"></div>
+              </div>
+              <div class="lc-legend">
+                <span><i class="lc-dot" style="background:#bfa87a"></i>Shrub ${shrub}%</span>
+                <span><i class="lc-dot" style="background:#78c679"></i>Grass ${grass}%</span>
+                <span><i class="lc-dot" style="background:#d9d0c1"></i>Bare ${bare}%</span>
+              </div>`;
+          }
+          if (html) {
+            sec.innerHTML = html;
+            c.appendChild(sec);
+          }
+        }
+
         const row = c.querySelector(".row");
         if (kids.length) {
           const b = document.createElement("button");
@@ -1097,43 +1870,126 @@
          confirm against the current NDMA bulletin methodology before operational use.
          ===================================================================== */
       const IND = {
+        /* ── 🌿 Vegetation & Forage ── */
         vci3: {
-          label: "VCI, 3-month", group: "Vegetation", dec: 0, status: "Derived", flag: 50, lines: [50, 35, 20],
+          label: "VCI, 3-month", group: "🌿 Vegetation & Forage", dec: 0, status: "Derived", flag: 50, lines: [50, 35, 20],
           note: "Vegetation Condition Index vs 2001-2025 baseline. Low = poor condition.",
           stops: [[0, "#a63603"], [20, "#e6550d"], [35, "#fdae6b"], [50, "#ffffbf"], [75, "#a6d96a"], [100, "#1a9641"]],
           classes: [[20, "Emergency"], [35, "Alarm"], [50, "Alert"], [1e9, "Normal"]],
         },
         vci: {
-          label: "VCI, single composite", group: "Vegetation", dec: 0, status: "Derived", flag: 50, lines: [50, 35, 20],
+          label: "VCI, single composite", group: "🌿 Vegetation & Forage", dec: 0, status: "Derived", flag: 50, lines: [50, 35, 20],
           note: "Noisier than the 3-month VCI; use for timing, not classification.",
           stops: [[0, "#a63603"], [20, "#e6550d"], [35, "#fdae6b"], [50, "#ffffbf"], [75, "#a6d96a"], [100, "#1a9641"]],
           classes: [[20, "Emergency"], [35, "Alarm"], [50, "Alert"], [1e9, "Normal"]],
         },
         ndvi: {
-          label: "NDVI", group: "Vegetation", dec: 2, status: "Observed", lines: [],
+          label: "NDVI (MODIS 250m)", group: "🌿 Vegetation & Forage", dec: 2, status: "Observed", lines: [],
           note: "MODIS 250 m ward mean. Shown only where at least half the ward has valid pixels.",
           stops: [[0.1, "#f6e8c3"], [0.25, "#d9ef8b"], [0.4, "#66bd63"], [0.6, "#1a9850"]],
         },
+        pasture_health: {
+          label: "Pasture Health", group: "🌿 Vegetation & Forage", dec: 0, status: "Derived", flag: 60, lines: [60, 50, 35],
+          note: "Composite score built from VCI, NDVI and rainfall signal. Higher is healthier grazing condition.",
+          stops: [[0, "#a63603"], [35, "#e6550d"], [50, "#fdd36b"], [60, "#a6d96a"], [80, "#4daf4a"], [100, "#1a9641"]],
+          classes: [[35, "Critical"], [50, "Stressed"], [60, "Moderate"], [1e9, "Healthy"]],
+        },
         ndvi_anom: {
-          label: "NDVI anomaly", group: "Vegetation", dec: 2, status: "Derived", lines: [0],
+          label: "NDVI anomaly", group: "🌿 Vegetation & Forage", dec: 2, status: "Derived", lines: [0],
           note: "Departure from the baseline mean for the same composite.",
           stops: [[-0.15, "#8c510a"], [0, "#f5f5f5"], [0.15, "#01665e"]],
         },
+        evi: {
+          label: "EVI (Enhanced Vegetation)", group: "🌿 Vegetation & Forage", dec: 2, status: "Observed", lines: [],
+          note: "MODIS Enhanced Vegetation Index (less sensitive to soil background than NDVI).",
+          stops: [[0.05, "#ffffe5"], [0.15, "#d9f0a3"], [0.3, "#78c679"], [0.55, "#006837"]],
+        },
+        npp_kgc_m2: {
+          label: "NPP Annual Biomass (kg C/m²/yr)", group: "🌿 Vegetation & Forage", dec: 3, status: "Observed", lines: [],
+          note: "MODIS Annual Net Primary Production. Proxy for rangeland forage accumulation.",
+          stops: [[0.02, "#ffffe5"], [0.08, "#d9f0a3"], [0.2, "#78c679"], [0.45, "#006837"]],
+        },
+        npp_dn_wapor: {
+          label: "WaPOR Dekadal Biomass", group: "🌿 Vegetation & Forage", dec: 1, status: "Observed", lines: [],
+          note: "FAO WaPOR dekadal net primary production proxy.",
+          stops: [[0, "#f7fcb9"], [40, "#addd8e"], [120, "#31a354"]],
+        },
+
+        /* ── 🌧️ Rainfall & Drought ── */
         rain_spi3: {
-          label: "SPI, 3-month", group: "Rainfall", dec: 2, status: "Derived", flag: -1, lines: [-1, -1.5, -2],
+          label: "SPI, 3-month", group: "🌧️ Rainfall & Drought", dec: 2, status: "Derived", flag: -1, lines: [-1, -1.5, -2],
           note: "Standardised Precipitation Index (CHIRPS, 1991-2020 baseline). Negative = drier.",
           stops: [[-2.5, "#8c510a"], [-1.5, "#d8b365"], [0, "#f5f5f5"], [1.5, "#5ab4ac"], [2.5, "#01665e"]],
           classes: [[-2, "Extremely dry"], [-1.5, "Severely dry"], [-1, "Moderately dry"], [1e9, "Near normal or wetter"]],
         },
         rain_pon3: {
-          label: "Rainfall, % of normal (3-month)", group: "Rainfall", dec: 0, status: "Derived", lines: [100, 50],
+          label: "Rainfall, % of normal (3-month)", group: "🌧️ Rainfall & Drought", dec: 0, status: "Derived", lines: [100, 50],
           note: "3-month total as a percentage of the 1991-2020 mean for the same months.",
           stops: [[0, "#8c510a"], [50, "#d8b365"], [100, "#f5f5f5"], [150, "#80cdc1"], [200, "#01665e"]],
         },
         rain_mm: {
-          label: "Monthly rainfall (mm)", group: "Rainfall", dec: 0, status: "Observed", lines: [],
-          note: "CHIRPS ward mean.",
-          stops: [[0, "#f7fbff"], [50, "#9ecae1"], [150, "#3182bd"], [300, "#08306b"]],
+          label: "CHIRPS Monthly rain (mm)", group: "🌧️ Rainfall & Drought", dec: 0, status: "Observed", lines: [],
+          note: "CHIRPS v2.0 satellite-gauge ward mean rainfall.",
+          stops: [[0, "#f7fbff"], [30, "#9ecae1"], [100, "#3182bd"], [250, "#08306b"]],
+        },
+        era5_precip_sum: {
+          label: "ERA5 Monthly precipitation (m)", group: "🌧️ Rainfall & Drought", dec: 3, status: "Observed", lines: [],
+          note: "ECMWF ERA5-Land total monthly precipitation sum in metres.",
+          stops: [[0, "#f7fbff"], [0.03, "#9ecae1"], [0.08, "#3182bd"], [0.2, "#08306b"]],
+        },
+
+        /* ── 🌡️ Temperature & Thermal Stress ── */
+        lst_day_k: {
+          label: "Land Surface Temp Day (MODIS, K)", group: "🌡️ Temperature & Thermal Stress", dec: 1, status: "Observed", lines: [318],
+          note: "MODIS 1 km 8-day Day LST (Kelvin). Temperatures above 318 K (~45°C) cause severe livestock stress.",
+          stops: [[295, "#fee8c8"], [308, "#fdbb84"], [318, "#e34a33"], [328, "#b30000"]],
+        },
+        lst_night_k: {
+          label: "Land Surface Temp Night (MODIS, K)", group: "🌡️ Temperature & Thermal Stress", dec: 1, status: "Observed", lines: [],
+          note: "MODIS 1 km 8-day Night LST (Kelvin).",
+          stops: [[285, "#ece7f2"], [295, "#a6bddb"], [305, "#2b8cbe"]],
+        },
+        era5_temp_2m: {
+          label: "2m Air Temperature (ERA5, K)", group: "🌡️ Temperature & Thermal Stress", dec: 1, status: "Observed", lines: [],
+          note: "ECMWF ERA5-Land monthly mean 2m air temperature (Kelvin).",
+          stops: [[290, "#ffffcc"], [298, "#fecc5c"], [304, "#fd8d3c"], [310, "#e31a1c"]],
+        },
+        pwr_temp_max: {
+          label: "Max Air Temperature (NASA, °C)", group: "🌡️ Temperature & Thermal Stress", dec: 1, status: "Observed", lines: [35, 40],
+          note: "NASA POWER monthly mean daily maximum 2m air temperature (°C).",
+          stops: [[20, "#ffffcc"], [28, "#fecc5c"], [35, "#fd8d3c"], [42, "#e31a1c"]],
+        },
+        pwr_temp_min: {
+          label: "Min Air Temperature (NASA, °C)", group: "🌡️ Temperature & Thermal Stress", dec: 1, status: "Observed", lines: [],
+          note: "NASA POWER monthly mean daily minimum 2m air temperature (°C).",
+          stops: [[10, "#f7fbff"], [16, "#9ecae1"], [22, "#3182bd"], [28, "#08519c"]],
+        },
+
+        /* ── 💧 Soil Moisture & Evaporation ── */
+        era5_soil_water_l1: {
+          label: "Topsoil Moisture 0-7cm (m³/m³)", group: "💧 Soil Moisture & Evaporation", dec: 3, status: "Observed", lines: [0.1],
+          note: "ECMWF ERA5-Land topsoil moisture. Values < 0.1 m³/m³ denote critical wilting conditions.",
+          stops: [[0.04, "#d73027"], [0.1, "#fee08b"], [0.18, "#d9ef8b"], [0.28, "#1a9850"]],
+        },
+        era5_soil_water_l2: {
+          label: "Rootzone Moisture 7-28cm (m³/m³)", group: "💧 Soil Moisture & Evaporation", dec: 3, status: "Observed", lines: [0.1],
+          note: "ECMWF ERA5-Land rootzone soil water layer. Determines rangeland shrub and perennial forage persistence.",
+          stops: [[0.04, "#d73027"], [0.1, "#fee08b"], [0.18, "#d9ef8b"], [0.28, "#1a9850"]],
+        },
+        era5_pet_sum: {
+          label: "Potential Evaporation (ERA5, m)", group: "💧 Soil Moisture & Evaporation", dec: 3, status: "Observed", lines: [],
+          note: "ECMWF ERA5-Land monthly potential evaporation sum (m). Indicates drying demand on surface pans.",
+          stops: [[0.08, "#ffffb2"], [0.16, "#fecc5c"], [0.24, "#fd8d3c"], [0.32, "#bd0026"]],
+        },
+        pwr_rh2m: {
+          label: "Relative Humidity (NASA, %)", group: "💧 Soil Moisture & Evaporation", dec: 1, status: "Observed", lines: [30, 60],
+          note: "NASA POWER 2m relative humidity (%). Low RH rapidly dehydrates dry rangeland pasture.",
+          stops: [[15, "#d73027"], [30, "#fee08b"], [50, "#d9ef8b"], [75, "#1a9850"]],
+        },
+        pwr_wind_2m: {
+          label: "Wind Speed 2m (NASA, m/s)", group: "💧 Soil Moisture & Evaporation", dec: 1, status: "Observed", lines: [],
+          note: "NASA POWER monthly mean 2m wind speed (m/s). High winds accelerate pan evaporation.",
+          stops: [[1, "#ffffd4"], [3, "#fed98e"], [5, "#fe9929"], [8, "#cc4c02"]],
         },
       };
       const X = { ind: "vci3", p: 0, data: {}, timer: null };
@@ -1838,6 +2694,10 @@
       $("pixOpacity").addEventListener("input", (e) => {
         $("pixOpacityVal").textContent = e.target.value + "%";
         setPixOpacity(+e.target.value);
+      });
+
+      document.querySelectorAll("#waterToggle button").forEach((btn) => {
+        btn.addEventListener("click", () => setWaterPointsVisible(btn.dataset.visible === "true"));
       });
 
       /* after the map style loads, ensure the source exists if already active */
