@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.assessments",
     "apps.fieldwork",
     "apps.restricted",
+    "apps.messaging",
 ]
 
 MIDDLEWARE = [
@@ -74,3 +75,13 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Messaging (SMS) ---
+MESSAGING_SMS_PROVIDER = env("MESSAGING_SMS_PROVIDER", default="fake")  # "fake" or "africastalking"
+MESSAGING_CONSENT_POLICY_VERSION = env("MESSAGING_CONSENT_POLICY_VERSION", default="v1")
+MESSAGING_CONSENT_PENDING_TTL_HOURS = env.int("MESSAGING_CONSENT_PENDING_TTL_HOURS", default=72)
+AT_USERNAME = env("AT_USERNAME", default="sandbox")
+AT_API_KEY = env("AT_API_KEY", default="")
+AT_BASE_URL = env("AT_BASE_URL", default="https://api.sandbox.africastalking.com")
+AT_SENDER_ID = env("AT_SENDER_ID", default="")
+AT_WEBHOOK_TOKEN = env("AT_WEBHOOK_TOKEN", default="")

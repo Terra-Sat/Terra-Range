@@ -1,0 +1,1 @@
+{"SMSMessageData": {"Message": "Sent to 0/1 Total Cost: 0", "Recipients": [{"statusCode": 403, "number": "+254712345678", "cost": "0", "status": "InvalidPhoneNumber", "messageId": "None"}]}}

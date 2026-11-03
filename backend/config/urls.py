@@ -5,6 +5,7 @@ from django.views.generic import TemplateView
 from apps.geography import water_views
 
 urlpatterns = [
+    path("api/v1/messaging/", include("apps.messaging.urls")),
     path("", TemplateView.as_view(template_name="index.html"), name="dashboard"),
     path("admin/", admin.site.urls),
     path("api/v1/boundaries/", include("apps.geography.urls")),

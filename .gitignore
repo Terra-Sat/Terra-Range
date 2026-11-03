@@ -33,3 +33,4 @@ dist/
 backend/data/raw/
 frontend/data/*.geojson
 .env
+.venv/
