@@ -8,6 +8,7 @@ class Intent(str, Enum):
     CONFIRM = "confirm"
     STOP = "stop"
     HELP = "help"
+    STATUS = "status"
     UNKNOWN = "unknown"
 
 
@@ -17,6 +18,7 @@ KEYWORDS = {
     Intent.CONFIRM: {"YES", "NDIYO"},
     Intent.STOP: {"STOP", "ACHA"},
     Intent.HELP: {"HELP", "MSAADA"},
+    Intent.STATUS: {"STATUS", "HALI"},
 }
 
 _PUNCTUATION = re.compile(r"[^\w\s]", re.UNICODE)
