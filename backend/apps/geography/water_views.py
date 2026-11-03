@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from django.http import JsonResponse
 
-from .indicator_views import _ward_meta
+from .indicator_views import _ward_hierarchy, _ward_meta
 from .models import WaterPoint
 
 
@@ -17,7 +17,7 @@ def _status(p):
 
 
 def _public():
-    return WaterPoint.objects.filter(access_restriction="public", ward_code__isnull=False)
+    return WaterPoint.objects.filter(access_restriction="public")
 
 
 def points(request):
@@ -38,13 +38,18 @@ def points(request):
 
 def summary(request):
     level, meta = request.GET.get("level", "wards"), _ward_meta()
+    hierarchy = _ward_hierarchy()
     acc = defaultdict(lambda: {"total": 0, "verified": 0, "by_kind": defaultdict(int), "last_verified": None})
     area = defaultdict(float)
     for code, (parent, a) in meta.items():
-        area[code if level == "wards" else (parent if level == "constituencies" else "county")] += a
+        info = hierarchy.get(code, {})
+        county = info.get("county") or parent
+        area[code if level == "wards" else (parent if level == "constituencies" else county)] += a
     for p in _public().values("ward_code", "kind", "reported_status", "verified_status", "verified_at"):
-        parent = meta.get(p["ward_code"], (None, 0))[0]
-        key = p["ward_code"] if level == "wards" else (parent if level == "constituencies" else "county")
+        info = hierarchy.get(p["ward_code"], {})
+        parent = info.get("constituency") or meta.get(p["ward_code"], (None, 0))[0]
+        county = info.get("county") or parent
+        key = p["ward_code"] if level == "wards" else (parent if level == "constituencies" else county)
         r = acc[key]
         r["total"] += 1
         r["verified"] += _status(p) == "verified"

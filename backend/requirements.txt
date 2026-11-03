@@ -1,3 +1,5 @@
 Django>=5.0
 psycopg[binary]>=3.1
 django-environ
+pandas>=2.0
+statsmodels>=0.14
