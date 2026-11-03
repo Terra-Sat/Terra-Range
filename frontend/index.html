@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
   <head>
@@ -70,7 +71,22 @@
         overflow: auto;
       }
       header { padding: 16px 18px 12px; }
-      h1 { font-size: 19px; margin: 0 0 2px; }
+      .brand-block {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 4px;
+      }
+      .brand-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        box-shadow: 0 6px 16px rgba(15, 118, 110, 0.12);
+      }
+      h1 { font-size: 19px; margin: 0; }
       header p { margin: 0; color: var(--muted); font-size: 13px; }
       section { padding: 12px 18px; border-top: 1px solid var(--line); }
       h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 700; }
@@ -323,21 +339,36 @@
         gap: 8px;
         margin-bottom: 10px;
       }
+      #reportChat .report-chat-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
       #reportChat h3 {
         margin: 0;
         font-size: 15px;
       }
-      #reportChat .report-chat-close {
-        width: 28px;
-        height: 28px;
+      #reportChat .report-chat-close,
+      #reportChat .report-chat-export {
+        width: 30px;
+        height: 30px;
         border-radius: 8px;
         border: 1px solid var(--line);
         background: var(--paper);
         color: var(--ink);
         cursor: pointer;
-        font-size: 18px;
+        font-size: 15px;
         line-height: 1;
         padding: 0;
+      }
+      #reportChat .report-chat-export {
+        background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(20, 184, 166, 0.12));
+        border-color: rgba(124, 58, 237, 0.25);
+        color: var(--ink);
+        font-weight: 700;
+        width: auto;
+        min-width: 30px;
+        padding: 0 10px;
       }
       #reportChat .row {
         display: grid;
@@ -795,8 +826,11 @@
   <body>
     <aside>
       <header>
-        <h1>Marsabit boundaries</h1>
-        <p>Switch between county, constituency and ward layers.</p>
+        <div class="brand-block">
+          <img class="brand-mark" src="{% static 'logo.png' %}" alt="Terra Range logo" />
+          <h1>Terra Range</h1>
+        </div>
+        <p>Administrative boundaries and pasture intelligence dashboard.</p>
         <button id="themeToggle" class="mini" style="margin-top: 8px" type="button">Toggle dark mode</button>
       </header>
       <section>
@@ -875,7 +909,10 @@
     <aside id="reportChat" aria-live="polite">
       <div class="report-chat-header">
         <h3>Trend report assistant</h3>
-        <button class="report-chat-close" id="reportChatClose" type="button" aria-label="Close report assistant">×</button>
+        <div class="report-chat-actions">
+          <button class="report-chat-export" id="reportExportPngHeader" type="button" aria-label="Export report PDF" title="Export PDF">PDF</button>
+          <button class="report-chat-close" id="reportChatClose" type="button" aria-label="Close report assistant">×</button>
+        </div>
       </div>
       <div class="row">
         <div>
@@ -906,7 +943,7 @@
       </div>
       <div class="actions">
         <button class="primary" id="reportGenerate" type="button">Generate</button>
-        <button class="secondary" id="reportExportPng" type="button">Export PNG</button>
+        <button class="secondary" id="reportExportPng" type="button">Export PDF</button>
       </div>
       <div id="reportChatStatus">SVG-friendly output is generated for PDF/reporting and can be exported to PNG in-browser.</div>
       <div id="reportChartWrap">
@@ -917,6 +954,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
       "use strict";
       /* =====================================================================
@@ -1037,11 +1075,15 @@
 
       const reportChatToggle = $("reportChatToggle");
       const reportChatClose = $("reportChatClose");
+      const reportChatExportHeader = $("reportExportPngHeader");
       if (reportChatToggle) {
         reportChatToggle.addEventListener("click", () => setReportChatOpen(true));
       }
       if (reportChatClose) {
         reportChatClose.addEventListener("click", () => setReportChatOpen(false));
+      }
+      if (reportChatExportHeader) {
+        reportChatExportHeader.addEventListener("click", exportReportPdf);
       }
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
@@ -1214,40 +1256,192 @@
         }
       }
 
-      async function exportReportChartPng() {
-        const svgText = window.__terraReportChartSvg;
-        if (!svgText) {
-          $("reportChatStatus").textContent = "Generate a report first so the chart is available for export.";
+      async function exportReportPdf() {
+        const reportText = ($("reportMarkdown")?.innerText || $("reportMarkdown")?.textContent || "").trim();
+        const chartImage = $("reportChartImage")?.src || "";
+        if (!reportText) {
+          $("reportChatStatus").textContent = "Generate a report first so the full PDF can be exported.";
           return;
         }
         try {
-          const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const image = new Image();
-          image.onload = function () {
-            const canvas = document.createElement("canvas");
-            canvas.width = 1200;
-            canvas.height = 520;
-            const ctx = canvas.getContext("2d");
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-            const pngUrl = canvas.toDataURL("image/png");
-            const a = document.createElement("a");
-            a.href = pngUrl;
-            a.download = "terra-range-trend-report.png";
-            a.click();
-            URL.revokeObjectURL(url);
-            $("reportChatStatus").textContent = "PNG export started.";
+          if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error("pdf library unavailable");
+          }
+
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+          const pageWidth = pdf.internal.pageSize.getWidth();
+          const pageHeight = pdf.internal.pageSize.getHeight();
+          const margin = 14;
+          let y = margin;
+
+          let brandLogo = "";
+          try {
+            const logoResponse = await fetch("{% static 'logo.png' %}");
+            if (logoResponse.ok) {
+              const logoBlob = await logoResponse.blob();
+              brandLogo = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(logoBlob);
+              });
+            }
+          } catch (err) {
+            brandLogo = "";
+          }
+
+          const indicator = ($("reportIndicator")?.value || "Pasture Health").toUpperCase();
+          const wardValue = $("reportWard")?.value || "All wards";
+          const generatedAt = new Date().toLocaleString();
+
+          const summaryNode = document.querySelector(".report-banner");
+          const summaryValues = Array.from(document.querySelectorAll(".report-kpi")).map((kpi) => {
+            const label = kpi.querySelector(".report-kpi-label")?.textContent?.trim() || "";
+            const value = kpi.querySelector(".report-kpi-value")?.textContent?.trim() || "";
+            const sub = kpi.querySelector(".report-kpi-sub")?.textContent?.trim() || "";
+            return { label, value, sub };
+          });
+
+          const addSectionHeader = (text, size = 12) => {
+            if (y > pageHeight - 25) {
+              pdf.addPage();
+              y = margin;
+            }
+            pdf.setTextColor(17, 94, 89);
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(size);
+            pdf.text(text, margin, y);
+            y += 7;
+            pdf.setDrawColor(22, 163, 74);
+            pdf.line(margin, y, pageWidth - margin, y);
+            y += 5;
+            pdf.setTextColor(30, 30, 30);
+            pdf.setFont("helvetica", "normal");
           };
-          image.src = url;
+
+          const normalizeReportText = (value) => (value || "")
+            .replace(/\r/g, "")
+            .replace(/^#+\s*/gm, "")
+            .replace(/^[\-*]\s+/gm, "• ")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+
+          const addParagraphs = (text, size = 10, lineHeight = 4.3) => {
+            const paragraphs = normalizeReportText(text)
+              .split(/\n\s*\n/)
+              .map((p) => p.trim())
+              .filter(Boolean);
+            if (!paragraphs.length) return;
+            paragraphs.forEach((paragraph) => {
+              const formatted = paragraph
+                .replace(/\s+/g, " ")
+                .replace(/\s*•\s*/g, " • ");
+              const lines = pdf.splitTextToSize(formatted, pageWidth - (margin * 2));
+              for (const line of lines) {
+                if (y > pageHeight - 18) {
+                  pdf.addPage();
+                  y = margin;
+                }
+                pdf.setFontSize(size);
+                pdf.text(line, margin, y, { maxWidth: pageWidth - (margin * 2) });
+                y += lineHeight;
+              }
+              y += 2;
+            });
+          };
+
+          pdf.setFillColor(17, 94, 89);
+          pdf.rect(0, 0, pageWidth, 34, "F");
+          if (brandLogo) {
+            try {
+              pdf.addImage(brandLogo, "PNG", margin, 7, 16, 16);
+            } catch (err) {
+              // Ignore missing logo in PDF export.
+            }
+          }
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(18);
+          pdf.text("Terra Range", margin + 20, 21);
+          pdf.setFontSize(9);
+          pdf.text("Management Report", margin + 20, 28);
+          pdf.text(`Generated: ${generatedAt}`, pageWidth - margin - 38, 20, { align: "right" });
+          y = 42;
+
+          pdf.setTextColor(30, 30, 30);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(13);
+          pdf.text(`${indicator} • ${wardValue}`, margin, y);
+          y += 8;
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(10);
+          pdf.text(`Prepared for management review and operational planning.`, margin, y);
+          y += 12;
+
+          if (summaryNode) {
+            const statusPill = summaryNode.querySelector(".report-status-pill")?.textContent?.trim() || "Status";
+            pdf.setFillColor(240, 249, 255);
+            pdf.roundedRect(margin, y, pageWidth - (margin * 2), 24, 3, 3, "F");
+            pdf.setTextColor(17, 94, 89);
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(11);
+            pdf.text(`Status: ${statusPill}`, margin + 4, y + 8);
+            y += 28;
+          }
+
+          if (summaryValues.length) {
+            addSectionHeader("Key metrics", 12);
+            const colWidth = (pageWidth - (margin * 2)) / Math.min(3, summaryValues.length || 1);
+            summaryValues.slice(0, 3).forEach((item, idx) => {
+              const x = margin + idx * colWidth + 2;
+              const w = colWidth - 4;
+              pdf.setFillColor(248, 250, 252);
+              pdf.roundedRect(x, y, w, 24, 2, 2, "F");
+              pdf.setTextColor(71, 85, 105);
+              pdf.setFontSize(8);
+              pdf.text(item.label.toUpperCase(), x + 3, y + 6, { maxWidth: w - 6 });
+              pdf.setTextColor(15, 23, 42);
+              pdf.setFont("helvetica", "bold");
+              pdf.setFontSize(10);
+              const wrappedValue = pdf.splitTextToSize(item.value, w - 6);
+              pdf.text(wrappedValue[0] || "", x + 3, y + 13, { maxWidth: w - 6 });
+              pdf.setFont("helvetica", "normal");
+              pdf.setFontSize(7);
+              const wrappedSub = pdf.splitTextToSize(item.sub || "", w - 6);
+              pdf.text(wrappedSub[0] || "", x + 3, y + 19, { maxWidth: w - 6 });
+            });
+            y += 31;
+          }
+
+          if (chartImage && chartImage.startsWith("data:image")) {
+            try {
+              addSectionHeader("Trend chart", 12);
+              pdf.addImage(chartImage, "PNG", margin, y, pageWidth - (margin * 2), 62);
+              y += 68;
+            } catch (err) {
+              // Chart image is optional; continue without it.
+            }
+          }
+
+          addSectionHeader("Management narrative", 12);
+          addParagraphs(reportText, 10, 4.3);
+
+          pdf.save("terra-range-management-report.pdf");
+          $("reportChatStatus").textContent = "Full PDF report exported.";
         } catch (err) {
-          $("reportChatStatus").textContent = "PNG export is unavailable in this browser.";
+          $("reportChatStatus").textContent = "PDF export is unavailable in this browser. Use the browser print dialog as a fallback.";
+          if (window.print) {
+            window.print();
+          }
         }
       }
 
+      const exportReportChartPng = exportReportPdf;
+
       $("reportGenerate").addEventListener("click", generateTrendReport);
-      $("reportExportPng").addEventListener("click", exportReportChartPng);
+      $("reportExportPng").addEventListener("click", exportReportPdf);
+      $("reportExportPngHeader").addEventListener("click", exportReportPdf);
 
       const idx = (id) => LV.findIndex((l) => l.id === id);
       const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
