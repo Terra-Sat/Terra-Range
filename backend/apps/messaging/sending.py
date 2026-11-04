@@ -28,17 +28,37 @@ def send_advisory(recipient, body, *, reference="") -> SendOutcome:
     if not decision.allowed:
         logger.info("advisory suppressed reason=%s recipient=%s", decision.reason, recipient.id)
         return SendOutcome(False, reason=decision.reason)
+    if reference:
+        # Idempotency: a retry with the same reference never sends a second SMS.
+        existing = (
+            OutboundLog.objects.filter(recipient=recipient, purpose=Purpose.ADVISORY, reference=reference)
+            .exclude(status=DeliveryStatus.FAILED)
+            .first()
+        )
+        if existing:
+            return SendOutcome(True, reason="duplicate_reference", log_id=existing.id)
     return _dispatch(
         recipient=recipient, phone=recipient.phone, body=body, message_class=MessageClass.ADVISORY,
         purpose=Purpose.ADVISORY, reference=reference,
     )
 
 
-def send_transactional(*, purpose, phone, recipient=None, language="en") -> SendOutcome:
+def send_transactional(*, purpose, phone, recipient=None, language="en", channel=Channel.SMS) -> SendOutcome:
     """Send one of the fixed replies (consent prompt, welcome, stop confirmation, help)."""
+    return send_transactional_text(
+        purpose=purpose, body=render(purpose, language), phone=phone, recipient=recipient, channel=channel
+    )
+
+
+def send_transactional_text(*, purpose, body, phone, recipient=None, channel=Channel.SMS) -> SendOutcome:
+    """Send a service reply whose text was built by the caller (the location questions).
+
+    Only for replies inside a conversation the person started or consented to. Advisories must
+    go through send_advisory() so the consent gate applies.
+    """
     return _dispatch(
-        recipient=recipient, phone=phone, body=render(purpose, language),
-        message_class=MessageClass.TRANSACTIONAL, purpose=purpose, reference="",
+        recipient=recipient, phone=phone, body=body,
+        message_class=MessageClass.TRANSACTIONAL, purpose=purpose, reference="", channel=channel,
     )
 
 

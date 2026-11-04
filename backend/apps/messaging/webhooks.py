@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from apps.messaging.enums import Channel
 from apps.messaging.inbound import handle_delivery_report, handle_inbound_sms
 from apps.messaging.providers.africastalking import AfricasTalkingSms
 from apps.messaging.providers.base import WebhookParseError
@@ -73,11 +74,11 @@ def meta_whatsapp_webhook(request, token):
                 value = change.get("value", {})
                 if "messages" in value:
                     message = provider.parse_inbound(payload)
-                    handle_inbound_sms(message)
+                    handle_inbound_sms(message, channel=Channel.WHATSAPP, provider=provider.name)
                     return HttpResponse("OK")
                 if "statuses" in value:
                     status_event = provider.parse_status(payload)
-                    handle_delivery_report(status_event)
+                    handle_delivery_report(status_event, provider=provider.name)
                     return HttpResponse("OK")
     except WebhookParseError:
         return HttpResponse("bad request", status=400)

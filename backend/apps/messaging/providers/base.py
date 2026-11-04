@@ -22,6 +22,7 @@ class SendResult:
     provider_message_id: str = ""
     error_code: str = ""
     retryable: bool = False
+    detail: str = ""  # provider's own error text, for diagnostics only; never contains keys
 
 
 @dataclass(frozen=True)
