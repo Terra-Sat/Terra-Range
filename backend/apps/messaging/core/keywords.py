@@ -9,6 +9,7 @@ class Intent(str, Enum):
     STOP = "stop"
     HELP = "help"
     STATUS = "status"
+    LOCATION = "location"
     UNKNOWN = "unknown"
 
 
@@ -19,7 +20,12 @@ KEYWORDS = {
     Intent.STOP: {"STOP", "ACHA"},
     Intent.HELP: {"HELP", "MSAADA"},
     Intent.STATUS: {"STATUS", "HALI"},
+    Intent.LOCATION: {"LOCATION", "ENEO"},
 }
+
+# Words that only mean something while a person is answering the location question.
+NEXT_PAGE_WORDS = {"MORE", "ZAIDI"}
+BACK_WORDS = {"BACK", "NYUMA"}
 
 _PUNCTUATION = re.compile(r"[^\w\s]", re.UNICODE)
 

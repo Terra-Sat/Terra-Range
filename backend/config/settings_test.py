@@ -45,3 +45,5 @@ AT_API_KEY = "test-api-key-123"
 AT_BASE_URL = "https://api.sandbox.africastalking.com"
 AT_SENDER_ID = ""
 AT_WEBHOOK_TOKEN = "test-webhook-token"
+MESSAGING_LOCATION_SMS_MAX_CHARS = 300
+MESSAGING_LOCATION_MAX_OPTIONS = 9

@@ -44,6 +44,8 @@ class Purpose(models.TextChoices):
     WELCOME = "welcome", "Welcome"
     STOP_CONFIRMATION = "stop_confirmation", "Stop confirmation"
     HELP = "help", "Help"
+    LOCATION_PROMPT = "location_prompt", "Location question"
+    LOCATION_CONFIRMATION = "location_confirmation", "Location saved"
     ADVISORY = "advisory", "Advisory"
 
 

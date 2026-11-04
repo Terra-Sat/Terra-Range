@@ -15,13 +15,97 @@ from apps.messaging.enums import (
 )
 
 
+MAX_LOCATION_DEPTH = 8  # county -> sub-county -> ward leaves room for four more levels
+
+
+class Location(models.Model):
+    """One node in the administrative tree (county, sub-county, ward, or any level below).
+
+    The tree has no fixed depth: each node only knows its parent and a free-text ``level`` label.
+    ``path`` is a materialised path (``|KE010|SC1|W1|``) so "everything under this county" is one
+    indexed prefix query instead of a recursive one. Load and change nodes with
+    ``manage.py load_locations``; ``save()`` keeps ``depth`` and ``path`` consistent.
+    """
+
+    code = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=150)
+    level = models.CharField(max_length=32)
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="children")
+    depth = models.PositiveSmallIntegerField(default=0, editable=False)
+    path = models.CharField(max_length=1024, db_index=True, editable=False)
+    search_name = models.CharField(max_length=150, editable=False)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["depth", "sort_order", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.level})"
+
+    def save(self, *args, **kwargs):
+        from apps.messaging.core.keywords import normalise_text
+
+        if "|" in self.code:
+            raise ValueError("Location code must not contain '|'.")
+        self.search_name = normalise_text(self.name)
+        self.depth = self.parent.depth + 1 if self.parent_id else 0
+        if self.depth >= MAX_LOCATION_DEPTH:
+            raise ValueError(f"Locations can be at most {MAX_LOCATION_DEPTH} levels deep.")
+        self.path = f"{self.parent.path}{self.code}|" if self.parent_id else f"|{self.code}|"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_leaf(self):
+        return not self.children.filter(is_active=True).exists()
+
+    def chain(self):
+        """Names from this node up to the top, e.g. ["North Horr", "Marsabit"]."""
+        names, node = [], self
+        while node is not None:
+            names.append(node.name)
+            node = node.parent
+        return names
+
+    def label(self):
+        return ", ".join(self.chain())
+
+    @classmethod
+    def rebuild_paths(cls):
+        """Recompute depth and path for every node, top-down. Run after bulk re-parenting."""
+        by_parent = {}
+        for pk, parent_id in cls.objects.values_list("pk", "parent_id"):
+            by_parent.setdefault(parent_id, []).append(pk)
+        queue = [(pk, "|") for pk in by_parent.get(None, [])]
+        updates = []
+        nodes = {n.pk: n for n in cls.objects.all()}
+        while queue:
+            pk, prefix = queue.pop()
+            node = nodes[pk]
+            node.path = f"{prefix}{node.code}|"
+            node.depth = prefix.count("|") - 1
+            updates.append(node)
+            queue.extend((child, node.path) for child in by_parent.get(pk, []))
+        cls.objects.bulk_update(updates, ["path", "depth"], batch_size=500)
+        return len(updates)
+
+
 class Recipient(models.Model):
     """A person who can receive alerts. Phone is stored as E.164 (+254...)."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=150, blank=True)
     role = models.CharField(max_length=64, blank=True)
+    # ward_code is the key the data and delivery layers use. It always equals location.code when a
+    # location is set, and may hold a code with no Location row for recipients registered by hand.
     ward_code = models.CharField(max_length=64, blank=True, db_index=True)
+    location = models.ForeignKey(Location, null=True, blank=True, on_delete=models.PROTECT, related_name="recipients")
+    # State of the SMS location conversation. cursor = the node whose children are being asked (null = top level).
+    awaiting_location = models.BooleanField(default=False)
+    location_cursor = models.ForeignKey(Location, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    location_page = models.PositiveSmallIntegerField(default=0)
     language = models.CharField(max_length=8, default="en", choices=[("en", "English"), ("sw", "Kiswahili")])
     phone = models.CharField(max_length=16, unique=True)
     source = models.CharField(max_length=16, choices=Source.choices, default=Source.SMS_KEYWORD)

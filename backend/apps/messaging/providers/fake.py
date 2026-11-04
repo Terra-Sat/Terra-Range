@@ -1,3 +1,5 @@
+import uuid
+
 from apps.messaging.providers.base import SendRequest, SendResult, SmsProvider
 
 
@@ -23,4 +25,4 @@ class FakeSmsProvider(SmsProvider):
             result, FakeSmsProvider.next_result = FakeSmsProvider.next_result, None
             return result
         FakeSmsProvider.outbox.append(request)
-        return SendResult(True, provider_message_id=f"fake-{len(FakeSmsProvider.outbox)}")
+        return SendResult(True, provider_message_id=f"fake-{uuid.uuid4().hex[:12]}")
