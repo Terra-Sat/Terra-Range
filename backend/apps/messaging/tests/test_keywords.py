@@ -12,6 +12,7 @@ from apps.messaging.core.keywords import Intent, parse_intent
         ("  S T O P", Intent.UNKNOWN), ("STOP ALL", Intent.STOP), ("stop please", Intent.STOP),
         ("ACHA", Intent.STOP), ("acha.", Intent.STOP),
         ("HELP", Intent.HELP), ("Msaada", Intent.HELP),
+        ("STATUS", Intent.STATUS), ("status!", Intent.STATUS),
         ("", Intent.UNKNOWN), ("hello", Intent.UNKNOWN), ("yes please join", Intent.UNKNOWN),
         (None, Intent.UNKNOWN), (123, Intent.UNKNOWN),
     ],

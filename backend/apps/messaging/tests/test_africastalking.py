@@ -112,3 +112,42 @@ def test_parse_inbound_tolerates_bad_date_and_rejects_missing_fields(load_fixtur
 def test_parse_status(load_fixture, raw, expected):
     event = provider(FakeSession()).parse_status({**load_fixture("at_delivery_report.json"), "status": raw})
     assert event.status == expected
+
+
+def test_failed_send_carries_the_providers_error_text_for_diagnostics():
+    class Resp:
+        status_code = 401
+        text = '{"errorMessage":"The supplied authentication is invalid"}'
+
+    class Session:
+        def post(self, *a, **k):
+            return Resp()
+
+    from apps.messaging.providers.africastalking import AfricasTalkingSms
+    from apps.messaging.providers.base import SendRequest
+
+    provider = AfricasTalkingSms(username="u", api_key="k", base_url="https://x", session=Session())
+    result = provider.send(SendRequest(to="+254712345678", body="hi"))
+    assert result.error_code == "http_401" and "authentication is invalid" in result.detail
+
+
+def test_diagnostic_text_never_contains_a_full_phone_number():
+    class Resp:
+        status_code = 200
+        text = '{"SMSMessageData":{"Recipients":[{"number":"+254712345678","weird":true}]}}'
+
+        def json(self):
+            import json
+
+            return json.loads(self.text)
+
+    class Session:
+        def post(self, *a, **k):
+            return Resp()
+
+    from apps.messaging.providers.africastalking import AfricasTalkingSms
+    from apps.messaging.providers.base import SendRequest
+
+    provider = AfricasTalkingSms(username="u", api_key="k", base_url="https://x", session=Session())
+    result = provider.send(SendRequest(to="+254712345678", body="hi"))
+    assert result.accepted is False and "254712345678" not in result.detail and result.detail.count("*") >= 9

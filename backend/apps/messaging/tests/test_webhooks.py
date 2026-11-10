@@ -98,6 +98,19 @@ def test_invalid_sender_number_is_ignored(sms):
     assert Recipient.objects.count() == 0 and FakeSmsProvider.outbox == []
 
 
+def test_status_keyword_sends_a_plain_language_report(sms):
+    assert sms("JOIN", "status-1").status_code == 200
+    recipient = Recipient.objects.get(phone=PHONE)
+    recipient.ward_code = "MARSABIT-01"
+    recipient.save()
+    assert sms("YES", "status-2").status_code == 200
+    assert sms("STATUS", "status-3").status_code == 200
+    assert len(FakeSmsProvider.outbox) == 3
+    last = FakeSmsProvider.outbox[-1].body
+    assert "Terra Range status" in last
+    assert "MARSABIT-01" in last or "ward" in last.lower()
+
+
 def test_delivery_reports_advance_and_never_go_backwards(client, load_fixture):
     make_sent_log(Recipient.objects.create(phone=PHONE))
     report = load_fixture("at_delivery_report.json")

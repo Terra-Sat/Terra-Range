@@ -108,7 +108,9 @@ def test_only_active_consent_allows_advisory(recipient, status):
 def test_gate_fails_closed_for_missing_consent_and_other_channels(recipient):
     assert can_send(recipient, Channel.SMS, MessageClass.ADVISORY).reason == "consent_none"
     Consent.objects.create(recipient=recipient, channel=Channel.SMS, status=ConsentStatus.ACTIVE, policy_version="v1")
-    assert can_send(recipient, "whatsapp", MessageClass.ADVISORY).reason == "unsupported_channel"
+    assert can_send(recipient, "whatsapp", MessageClass.ADVISORY).reason == "consent_none"
+    Consent.objects.create(recipient=recipient, channel=Channel.WHATSAPP, status=ConsentStatus.ACTIVE, policy_version="v1")
+    assert can_send(recipient, "whatsapp", MessageClass.ADVISORY).allowed is True
 
 
 def test_ledger_is_append_only(recipient):

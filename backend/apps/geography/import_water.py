@@ -9,6 +9,7 @@ Re-imports update location/name/kind only; verification fields are never overwri
 """
 import csv
 import json
+import os
 import re
 
 import requests
@@ -19,7 +20,10 @@ from shapely.geometry import shape
 from .models import WaterPoint
 from .views import _layers, _q
 
-OVERPASS = "https://overpass-api.de/api/interpreter"
+OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
+# Overpass rejects anonymous clients (HTTP 406): identify the app, ideally with a contact (TERRA_CONTACT env var).
+HEADERS = {"User-Agent": f"TerraRange/0.1 ({os.environ.get('TERRA_CONTACT', 'water-point import')})",
+           "Accept": "application/json"}
 KINDS = [(r"bore", "borehole"), (r"\bwell\b", "well"), (r"spring", "spring"),
          (r"\b(dam|pan|reservoir|pond|lake|basin)\b", "surface water"), (r"water ?hole", "waterhole"),
          (r"\btap\b|kiosk|drinking|water point", "tap"), (r"pump", "well")]
@@ -62,9 +66,18 @@ def osm_rows():
         '["man_made"="water_well"]', '["amenity"="drinking_water"]', '["amenity"="water_point"]',
         '["natural"="spring"]', '["man_made"="water_tap"]',
         '["natural"="water"]["water"~"reservoir|pond|lake|basin"]')) + ");out center tags;")
-    r = requests.post(OVERPASS, data={"data": q}, timeout=240)
-    r.raise_for_status()
-    for el in r.json().get("elements", []):
+    errors = []
+    for url in OVERPASS:                                    # try each public server in turn
+        try:
+            r = requests.post(url, data={"data": q}, headers=HEADERS, timeout=240)
+            r.raise_for_status()
+            elements = r.json().get("elements", [])
+            break
+        except (requests.RequestException, ValueError) as e:
+            errors.append(f"{url}: {e}")
+    else:
+        raise CommandError("Overpass failed on every server:\n  " + "\n  ".join(errors))
+    for el in elements:
         tags = el.get("tags", {})
         c = el.get("center") or el
         if "lat" not in c:

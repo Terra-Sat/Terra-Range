@@ -5,11 +5,13 @@ and sandbox before going live.
 """
 import hmac
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
 import requests
 from django.conf import settings
 
+from apps.messaging.core.redact import mask_phone
 from apps.messaging.enums import DeliveryStatus
 from apps.messaging.providers.base import (
     InboundMessage,
@@ -39,6 +41,18 @@ def _parse_date(value):
         return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=EAT)
     except (TypeError, ValueError):
         return None
+
+
+_PHONE_LIKE = re.compile(r"\+?\d{9,15}")
+
+
+def _body(response):
+    """Short response text for diagnostics, with anything that looks like a phone number masked."""
+    try:
+        text = str(getattr(response, "text", "") or "")[:300]
+    except Exception:
+        return ""
+    return _PHONE_LIKE.sub(lambda match: mask_phone(match.group()), text)
 
 
 class AfricasTalkingSms(SmsProvider):
@@ -84,21 +98,23 @@ class AfricasTalkingSms(SmsProvider):
         except Exception as exc:
             # Log only the exception class: messages can contain URLs, keys or numbers.
             logger.warning("africastalking send failed: %s", type(exc).__name__)
-            return SendResult(False, error_code="network_error", retryable=True)
+            return SendResult(False, error_code="network_error", retryable=True, detail=type(exc).__name__)
 
         status = response.status_code
         if status == 429 or status >= 500:
-            return SendResult(False, error_code=f"http_{status}", retryable=True)
+            return SendResult(False, error_code=f"http_{status}", retryable=True, detail=_body(response))
         if status not in (200, 201):
-            return SendResult(False, error_code=f"http_{status}")
+            return SendResult(False, error_code=f"http_{status}", detail=_body(response))
         try:
             first = response.json()["SMSMessageData"]["Recipients"][0]
             code = int(first["statusCode"])
         except (ValueError, KeyError, IndexError, TypeError):
-            return SendResult(False, error_code="bad_response")
+            return SendResult(False, error_code="bad_response", detail=_body(response))
         if code in self.SUCCESS_CODES:
             return SendResult(True, provider_message_id=str(first.get("messageId", "")))
-        return SendResult(False, error_code=f"at_{code}", retryable=code in self.RETRYABLE_CODES)
+        return SendResult(
+            False, error_code=f"at_{code}", retryable=code in self.RETRYABLE_CODES, detail=str(first.get("status", ""))
+        )
 
     def verify_webhook(self, *, url_token: str) -> bool:
         """Africa's Talking SMS callbacks are not signed, so we use a secret token in the callback URL."""

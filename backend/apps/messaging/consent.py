@@ -45,7 +45,7 @@ def can_send(recipient, channel, message_class) -> SendDecision:
     Advisory messages need ACTIVE consent on that exact channel.
     Transactional messages are only the fixed replies in messages.py.
     """
-    if str(channel) != Channel.SMS.value:
+    if str(channel) not in {Channel.SMS.value, Channel.WHATSAPP.value}:
         return SendDecision(False, "unsupported_channel")
     if str(message_class) == MessageClass.TRANSACTIONAL.value:
         return SendDecision(True, "transactional")

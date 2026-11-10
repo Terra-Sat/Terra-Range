@@ -12,7 +12,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--phone", required=True)
         parser.add_argument("--name", default="")
-        parser.add_argument("--ward", default="")
+        parser.add_argument("--ward", default="", help="Location code at any level (county, sub-county or ward). Leave out to let them choose over SMS.")
         parser.add_argument("--role", default="")
         parser.add_argument("--language", choices=["en", "sw"], default="en")
         parser.add_argument("--no-prompt", action="store_true", help="Register without sending the consent SMS.")
